@@ -32,16 +32,17 @@ export const MediaPipeConfig = {
 
 export const PointingConfig = {
   /**
-   * レーザーポインター方式の延長率。
-   * 手首→指先のベクトルを指先からさらに延長してカーソルの基点を求める。
-   * 大きいほど少しの傾きで大きく動く (Wiiリモコン的)。
+   * 角度ポインティング (Wii/レーザー方式)。
+   * 手首→指先の「向きベクトル」だけでカーソルを決める。手の位置(平行移動)には依存しない。
+   * aim = 0.5 + (dir - neutral) * sensitivity
+   *
+   * neutral: 画面中央を指しているときの向き(手を立てて前方を指すと指先がやや上=yは負)。
+   * sensitivity: 大きいほど少しの傾きで画面端まで届く。
    */
-  extension: 0.6,
-  /**
-   * 画面中心まわりの増幅。1より大きいほど少ない動きで画面端まで届く。
-   * (手首基準だけだと端に届きにくいので併用)
-   */
-  gain: 1.5,
+  neutralX: 0,
+  neutralY: -0.22,
+  sensitivityX: 2.8,
+  sensitivityY: 2.8,
 } as const;
 
 export const CursorConfig = {
