@@ -75,13 +75,17 @@ export class MediaPipeBridge {
     const baseX = 1 - base.x;
     const baseY = base.y;
 
-    // レーザーポインター方式: 付け根→指先の向きを指先からさらに延長した点を狙う。
+    // レーザーポインター方式: 手首→指先の向きを指先から延長し、
+    // さらに画面中心まわりを増幅して端まで届くようにする。
     const dirX = tipX - baseX;
     const dirY = tipY - baseY;
     const k = PointingConfig.extension;
+    const g = PointingConfig.gain;
+    const px = tipX + dirX * k;
+    const py = tipY + dirY * k;
     const position: Vec2 = {
-      x: clamp01(tipX + dirX * k),
-      y: clamp01(tipY + dirY * k),
+      x: clamp01(0.5 + (px - 0.5) * g),
+      y: clamp01(0.5 + (py - 0.5) * g),
     };
     this.lastResult = { state: TrackingState.Tracking, position };
     return this.lastResult;

@@ -23,8 +23,8 @@ export const MediaPipeConfig = {
   numHands: 1,
   /** 人差し指先端の MediaPipe ランドマーク index */
   indexFingerTipLandmark: 8,
-  /** 人差し指付け根 (MCP) の MediaPipe ランドマーク index。指の向きの基準点。 */
-  indexFingerBaseLandmark: 5,
+  /** 照準の基準点 = 手首 (landmark 0)。手首→指先の延長線で狙う。 */
+  indexFingerBaseLandmark: 0,
   minHandDetectionConfidence: 0.5,
   minHandPresenceConfidence: 0.5,
   minTrackingConfidence: 0.5,
@@ -33,10 +33,15 @@ export const MediaPipeConfig = {
 export const PointingConfig = {
   /**
    * レーザーポインター方式の延長率。
-   * 付け根→指先のベクトルを指先からさらに延長してカーソル位置を求める。
-   * 大きいほど少しの傾きで大きく動く (Wiiリモコン的)。0 にすると指先位置そのもの。
+   * 手首→指先のベクトルを指先からさらに延長してカーソルの基点を求める。
+   * 大きいほど少しの傾きで大きく動く (Wiiリモコン的)。
    */
-  extension: 2.5,
+  extension: 0.6,
+  /**
+   * 画面中心まわりの増幅。1より大きいほど少ない動きで画面端まで届く。
+   * (手首基準だけだと端に届きにくいので併用)
+   */
+  gain: 1.5,
 } as const;
 
 export const CursorConfig = {
@@ -251,10 +256,10 @@ export const AssetConfig = {
     [0.7856, 0.2095, 0.0942],
     [0.2168, 0.5015, 0.0918],
     [0.5, 0.5, 0.0918],
-    [0.7856, 0.4971, 0.0947],
-    [0.2173, 0.8047, 0.0947],
+    [0.7856, 0.4961, 0.0957],
+    [0.2173, 0.8027, 0.0928],
     [0.4995, 0.8027, 0.0928],
-    [0.7856, 0.8037, 0.0938],
+    [0.7856, 0.8008, 0.0957],
   ] as ReadonlyArray<readonly [number, number, number]>,
   /** 半径に掛ける余裕 (1.0=赤リング外周ぴったり)。 */
   iconPad: 1.0,
