@@ -10,6 +10,8 @@ export interface TargetOptions {
   label?: string | null;
   /** 出現からの生存時間 (秒)。Infinity で永続。 */
   life?: number;
+  /** 的スプライトシートのアイコン番号 (0..8)。未指定なら円で描画。 */
+  iconIndex?: number | null;
 }
 
 /**
@@ -24,6 +26,8 @@ export class Target {
   readonly radius: number;
   readonly scoreValue: number;
   readonly label: string | null;
+  /** 的スプライトのアイコン番号 (未指定=null)。 */
+  readonly iconIndex: number | null;
   /** 横移動速度 (スライダー用、ワールド単位/秒)。 */
   vx = 0;
   /** 残り生存時間 (ポップアップ/ボーナス用)。 */
@@ -37,6 +41,7 @@ export class Target {
     this.radius = opts.radius ?? TargetConfig.radius;
     this.scoreValue = opts.scoreValue ?? TargetConfig.scores[this.type];
     this.label = opts.label ?? null;
+    this.iconIndex = opts.iconIndex ?? null;
     this.life = opts.life ?? Infinity;
   }
 

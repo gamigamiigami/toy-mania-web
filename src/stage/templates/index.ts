@@ -3,6 +3,7 @@ import type { TemplateName } from '../../core/types';
 import type { StageTemplate } from '../StageTemplate';
 import { HamAndEggs } from './HamAndEggs';
 import { HorizontalSliders } from './HorizontalSliders';
+import { PhotoFarm } from './PhotoFarm';
 import { PopupMatrix } from './PopupMatrix';
 import { SequentialChains } from './SequentialChains';
 
@@ -19,13 +20,16 @@ export function createTemplate(
     case 'hameggs':
       return new HamAndEggs(bus);
     case 'sliders':
-    default:
       return new HorizontalSliders();
+    case 'photo':
+    default:
+      return new PhotoFarm();
   }
 }
 
 /** UI 表示用のテンプレート一覧。 */
 export const TEMPLATE_LIST: { name: TemplateName; label: string }[] = [
+  { name: 'photo', label: 'Farm' },
   { name: 'hameggs', label: 'Ham & Eggs' },
   { name: 'sliders', label: 'Sliders' },
   { name: 'matrix', label: 'Pop-up' },

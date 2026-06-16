@@ -1,4 +1,5 @@
 import { CameraConfig, TemplatesConfig } from '../config/GameConfig';
+import { Assets } from './Assets';
 import { Camera } from './Camera';
 import { EventBus, type GameBus } from './EventBus';
 import { CursorController } from '../cursor/CursorController';
@@ -24,6 +25,7 @@ import { Renderer } from '../ui/Renderer';
 export class GameEngine {
   private readonly bus: GameBus = new EventBus();
   private readonly bridge = new MediaPipeBridge();
+  private readonly assets = new Assets();
   private readonly camera: Camera;
   private readonly cursor: CursorController;
   private readonly projectiles = new ProjectileSystem();
@@ -51,9 +53,10 @@ export class GameEngine {
     canvas.width = w;
     canvas.height = h;
 
+    this.assets.load();
     this.camera = new Camera(w, h);
     this.cursor = new CursorController(w, h);
-    this.renderer = new Renderer(canvas, video);
+    this.renderer = new Renderer(canvas, this.assets);
     this.autoFire = new AutoFireSystem(() => this.handleFire());
     this.template = createTemplate(this.templateName, this.bus);
 

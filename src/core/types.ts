@@ -51,4 +51,9 @@ export enum TargetType {
 }
 
 /** ステージテンプレート種別 (Phase1)。 */
-export type TemplateName = 'sliders' | 'matrix' | 'chains' | 'hameggs';
+export type TemplateName =
+  | 'photo'
+  | 'sliders'
+  | 'matrix'
+  | 'chains'
+  | 'hameggs';
