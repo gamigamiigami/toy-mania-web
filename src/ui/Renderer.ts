@@ -1,16 +1,15 @@
 import {
+  ArenaConfig,
   CursorConfig,
   FeedbackConfig,
-  StageConfig,
-  WorldConfig,
   TargetConfig,
+  WorldConfig,
 } from '../config/GameConfig';
 import type { Camera } from '../core/Camera';
-import { TargetState, TrackingState, type Vec3 } from '../core/types';
+import { TargetState, TargetType, TrackingState, type Vec3 } from '../core/types';
 import type { CursorController } from '../cursor/CursorController';
 import type { FeedbackManager } from '../feedback/FeedbackManager';
-import type { Stage } from '../stage/Stage';
-import type { TargetManager } from '../target/TargetManager';
+import type { StageTemplate } from '../stage/StageTemplate';
 import type { ProjectileSystem } from '../weapon/ProjectileSystem';
 
 /**
@@ -31,29 +30,29 @@ export class Renderer {
   }
 
   render(
-    stage: Stage,
-    targets: TargetManager,
+    template: StageTemplate,
     cursor: CursorController,
     feedback: FeedbackManager,
     projectiles: ProjectileSystem,
     camera: Camera,
+    combo: number,
   ): void {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     this.drawBackground();
     this.drawVideoMirrored();
-    // 奥のものから描く (ペインターズアルゴリズム)。
     this.drawFloorGrid(camera);
-    this.drawStage(stage, camera);
-    this.drawTargets(targets, camera);
+    this.drawGuides(template, camera);
+    this.drawTargets(template, camera);
     this.drawProjectiles(projectiles, camera);
+    this.drawScoreTexts(feedback);
     this.drawMarkers(feedback);
     this.drawAimGuide(cursor);
     this.drawCursor(cursor);
+    this.drawCombo(combo);
   }
 
-  /** 空〜地面のグラデーション背景。 */
   private drawBackground(): void {
     const { ctx, canvas } = this;
     const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -64,141 +63,97 @@ export class Renderer {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  /** カメラ映像を鏡像で薄く重ねる (AR感)。 */
   private drawVideoMirrored(): void {
     const { ctx, canvas, video } = this;
     if (video.readyState < 2) return;
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
-    ctx.globalAlpha = 0.32;
+    ctx.globalAlpha = 0.3;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     ctx.restore();
   }
 
-  /** 床のグリッド。奥行きの手掛かりを強める。 */
   private drawFloorGrid(camera: Camera): void {
     const { ctx } = this;
     const y = WorldConfig.floorY;
-    const hw = StageConfig.halfWidth + 2;
-    const zStart = StageConfig.z0 - 2;
-    const zEnd =
-      StageConfig.z0 + StageConfig.stepCount * StageConfig.stepDepth + 3;
-
+    const hw = ArenaConfig.halfWidth + 2;
+    const { gridZStart, gridZEnd, gridStep } = ArenaConfig;
     ctx.save();
-    ctx.strokeStyle = StageConfig.gridColor;
+    ctx.strokeStyle = ArenaConfig.gridColor;
     ctx.lineWidth = 1;
-    // z方向の線 (奥行き)
-    for (let x = -hw; x <= hw; x += 1.5) {
-      this.strokeLine3D(camera, { x, y, z: zStart }, { x, y, z: zEnd });
+    for (let x = -hw; x <= hw + 0.001; x += gridStep) {
+      this.strokeLine3D(camera, { x, y, z: gridZStart }, { x, y, z: gridZEnd });
     }
-    // x方向の線 (横)
-    for (let z = zStart; z <= zEnd; z += 1.5) {
+    for (let z = gridZStart; z <= gridZEnd + 0.001; z += gridStep) {
       this.strokeLine3D(camera, { x: -hw, y, z }, { x: hw, y, z });
     }
     ctx.restore();
   }
 
-  /** 階段ステージ (各段の上面と前面) を描画する。 */
-  private drawStage(stage: Stage, camera: Camera): void {
-    const hw = stage.halfWidth;
-    // 奥の段から描く。
-    const steps = [...stage.getSteps()].sort((a, b) => b.zFar - a.zFar);
-    for (const s of steps) {
-      // 前面(蹴上げ): 手前側の縦面。
-      this.fillQuad3D(
-        camera,
-        [
-          { x: -hw, y: s.y, z: s.zNear },
-          { x: hw, y: s.y, z: s.zNear },
-          { x: hw, y: s.yBottom, z: s.zNear },
-          { x: -hw, y: s.yBottom, z: s.zNear },
-        ],
-        StageConfig.colorRiser,
-      );
-      // 上面: 水平面。
-      this.fillQuad3D(
-        camera,
-        [
-          { x: -hw, y: s.y, z: s.zFar },
-          { x: hw, y: s.y, z: s.zFar },
-          { x: hw, y: s.y, z: s.zNear },
-          { x: -hw, y: s.y, z: s.zNear },
-        ],
-        StageConfig.colorTop,
-        StageConfig.edgeColor,
-      );
-    }
-  }
-
-  /** 3Dの4頂点ポリゴンを投影して塗る。全頂点が前方にあるときのみ描画。 */
-  private fillQuad3D(
-    camera: Camera,
-    corners: Vec3[],
-    fill: string,
-    edge?: string,
-  ): void {
+  private drawGuides(template: StageTemplate, camera: Camera): void {
     const { ctx } = this;
-    const pts = corners.map((c) => camera.project(c));
-    if (pts.some((p) => !p.visible)) return;
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-    ctx.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill();
-    if (edge) {
-      ctx.strokeStyle = edge;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+    ctx.strokeStyle = ArenaConfig.guideColor;
+    ctx.lineWidth = 1.5;
+    for (const g of template.getGuides()) {
+      this.strokeLine3D(camera, g.a, g.b);
     }
     ctx.restore();
   }
 
-  private strokeLine3D(camera: Camera, a: Vec3, b: Vec3): void {
+  private drawTargets(template: StageTemplate, camera: Camera): void {
     const { ctx } = this;
-    const pa = camera.project(a);
-    const pb = camera.project(b);
-    if (!pa.visible || !pb.visible) return;
-    ctx.beginPath();
-    ctx.moveTo(pa.x, pa.y);
-    ctx.lineTo(pb.x, pb.y);
-    ctx.stroke();
-  }
-
-  private drawTargets(targets: TargetManager, camera: Camera): void {
-    const { ctx } = this;
-    // 奥(z大)から手前(z小)の順に描画。
-    const sorted = [...targets.getTargets()].sort(
+    const sorted = [...template.getTargets()].sort(
       (a, b) => b.position.z - a.position.z,
     );
     for (const t of sorted) {
       const p = camera.project(t.position);
       if (!p.visible) continue;
-      // スタンド: 床から的までの縦線。距離(奥行き)を読み取る手掛かり。
+
+      // スタンド: 床から的への縦線 (距離の手掛かり)。
       ctx.save();
-      ctx.strokeStyle = StageConfig.standColor;
-      ctx.lineWidth = Math.max(1, 1.5 * p.scale * 0.05);
+      ctx.strokeStyle = ArenaConfig.standColor;
+      ctx.lineWidth = 1;
       this.strokeLine3D(
         camera,
         { x: t.position.x, y: WorldConfig.floorY, z: t.position.z },
         { x: t.position.x, y: t.position.y, z: t.position.z },
       );
       ctx.restore();
+
       const r = t.radius * p.scale;
       const isHit = t.state === TargetState.Hit;
+      const baseColor = TargetConfig.colors[t.type];
+
+      ctx.save();
+      // HighValue / Bonus は発光させて視線を誘導。
+      if (t.type === TargetType.HighValue || t.type === TargetType.Bonus) {
+        ctx.shadowColor = baseColor;
+        ctx.shadowBlur = 20;
+      }
       ctx.beginPath();
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = isHit ? TargetConfig.colorHit : TargetConfig.color;
+      ctx.fillStyle = isHit ? '#ffffff' : baseColor;
       ctx.fill();
-      ctx.lineWidth = Math.max(2, r * 0.06);
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = Math.max(2, r * 0.08);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
       ctx.stroke();
+      ctx.restore();
+
+      // ラベル (連鎖番号)。
+      if (t.label) {
+        ctx.save();
+        ctx.fillStyle = '#001018';
+        ctx.font = `bold ${Math.max(12, r)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(t.label, p.x, p.y);
+        ctx.restore();
+      }
     }
   }
 
-  /** ボールとその軌跡 (Trail) を投影して描画する。 */
   private drawProjectiles(
     projectiles: ProjectileSystem,
     camera: Camera,
@@ -208,7 +163,6 @@ export class Renderer {
       (a, b) => b.position.z - a.position.z,
     );
     for (const proj of sorted) {
-      // Trail: 古い点ほど細く・薄く。
       const pts = proj.trail;
       for (let i = 1; i < pts.length; i++) {
         const a = camera.project(pts[i - 1].pos);
@@ -226,7 +180,6 @@ export class Renderer {
         ctx.stroke();
         ctx.restore();
       }
-      // ボール本体
       const c = camera.project(proj.position);
       if (!c.visible) continue;
       const r = Math.max(1.5, proj.radius * c.scale);
@@ -244,9 +197,8 @@ export class Renderer {
   private drawMarkers(feedback: FeedbackManager): void {
     const { ctx } = this;
     for (const m of feedback.getMarkers()) {
-      if (m.kind !== 'hit') continue;
       const alpha = Math.max(0, m.life / m.maxLife);
-      const r = 20 + (1 - alpha) * 40;
+      const r = 18 + (1 - alpha) * 36;
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = FeedbackConfig.hitMarkerColor;
@@ -258,7 +210,26 @@ export class Renderer {
     }
   }
 
-  /** 画面下中央(手元)から照準点へ向かう破線。投げる「方向」を示す。 */
+  private drawScoreTexts(feedback: FeedbackManager): void {
+    const { ctx } = this;
+    for (const s of feedback.getScoreTexts()) {
+      const t = 1 - s.life / s.maxLife; // 0→1
+      const y = s.position.y - t * FeedbackConfig.scoreFloatPx;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, s.life / s.maxLife);
+      ctx.fillStyle = s.big
+        ? FeedbackConfig.scoreColorBig
+        : FeedbackConfig.scoreColor;
+      ctx.font = `bold ${s.big ? 40 : 26}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.7)';
+      ctx.shadowBlur = 6;
+      ctx.fillText(s.text, s.position.x, y);
+      ctx.restore();
+    }
+  }
+
   private drawAimGuide(cursor: CursorController): void {
     if (cursor.getState() !== TrackingState.Tracking) return;
     const { ctx, canvas } = this;
@@ -272,6 +243,20 @@ export class Renderer {
     ctx.moveTo(canvas.width / 2, canvas.height);
     ctx.lineTo(aim.x, aim.y);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawCombo(combo: number): void {
+    if (combo < 2) return;
+    const { ctx, canvas } = this;
+    ctx.save();
+    ctx.fillStyle = '#ffd60a';
+    ctx.font = 'bold 36px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 6;
+    ctx.fillText(`${combo} COMBO`, canvas.width / 2, 16);
     ctx.restore();
   }
 
@@ -305,5 +290,16 @@ export class Renderer {
     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+  }
+
+  private strokeLine3D(camera: Camera, a: Vec3, b: Vec3): void {
+    const { ctx } = this;
+    const pa = camera.project(a);
+    const pb = camera.project(b);
+    if (!pa.visible || !pb.visible) return;
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.stroke();
   }
 }

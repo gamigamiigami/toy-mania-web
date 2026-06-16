@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameEngine } from '../core/GameEngine';
+import type { TemplateName } from '../core/types';
+import { TEMPLATE_LIST } from '../stage/templates';
 
 type Phase = 'idle' | 'loading' | 'playing' | 'error';
 
 /**
  * GameView
- * 責務: DOM 要素 (video / canvas) の用意、開始操作、スコア HUD の表示。
- *       ゲームロジックは GameEngine に委譲する。
+ * 責務: DOM要素(video/canvas)の用意、開始操作、スコア/状況HUD、
+ *       ステージテンプレートの切替UI。ロジックは GameEngine に委譲する。
  */
 export function GameView() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -15,6 +17,8 @@ export function GameView() {
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [score, setScore] = useState(0);
+  const [status, setStatus] = useState('');
+  const [template, setTemplate] = useState<TemplateName>('sliders');
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
@@ -27,7 +31,9 @@ export function GameView() {
     try {
       const engine = new GameEngine(videoRef.current, canvasRef.current);
       engine.onScoreChange = setScore;
+      engine.onStatusChange = setStatus;
       engineRef.current = engine;
+      setTemplate(engine.getTemplateName());
       await engine.start();
       setPhase('playing');
     } catch (e) {
@@ -36,26 +42,46 @@ export function GameView() {
     }
   };
 
+  const handleSwitch = (name: TemplateName) => {
+    engineRef.current?.setTemplate(name);
+    setTemplate(name);
+  };
+
   return (
     <div className="game-root">
       <div className="stage">
-        {/* 映像取得用。表示は canvas 側で行うため隠す。 */}
         <video ref={videoRef} playsInline muted className="hidden-video" />
         <canvas ref={canvasRef} className="game-canvas" />
 
         {phase === 'playing' && (
-          <div className="hud">SCORE: {score}</div>
+          <>
+            <div className="hud">
+              <span className="score">SCORE: {score}</span>
+              {status && <span className="status">{status}</span>}
+            </div>
+            <div className="template-bar">
+              {TEMPLATE_LIST.map((t) => (
+                <button
+                  key={t.name}
+                  className={t.name === template ? 'tpl active' : 'tpl'}
+                  onClick={() => handleSwitch(t.name)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
         {phase !== 'playing' && (
           <div className="overlay">
-            <h1>指差しシューティング</h1>
-            <p className="subtitle">技術検証版 (MediaPipe Hand Tracking)</p>
+            <h1>指差し3Dシューティング</h1>
+            <p className="subtitle">Toy Mania風 / Phase1 テンプレート検証</p>
             {phase === 'idle' && (
               <>
                 <p>
-                  人差し指で照準を動かします。0.5秒ごとに自動連射され、
-                  黄色いターゲットに当てるとスコアが入ります。
+                  人差し指で投擲方向を狙い、奥の3D空間へボールを投げます。
+                  0.5秒ごとに自動連射。遠い的ほど重力で落ちるので上を狙います。
                 </p>
                 <button className="start-btn" onClick={handleStart}>
                   カメラを許可して開始

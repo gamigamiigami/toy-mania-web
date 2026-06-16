@@ -49,11 +49,48 @@ body {
   position: absolute;
   top: 16px;
   left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.hud .score {
   font-size: clamp(20px, 3vw, 40px);
   font-weight: 800;
   letter-spacing: 0.05em;
   color: #ffd60a;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.hud .status {
+  font-size: clamp(13px, 1.6vw, 20px);
+  font-weight: 700;
+  color: #9fe7ff;
+}
+
+.template-bar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.template-bar .tpl {
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #cfe8ff;
+  background: rgba(20, 40, 70, 0.7);
+  border: 1px solid rgba(120, 180, 255, 0.4);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.template-bar .tpl.active {
+  color: #001018;
+  background: #00e5ff;
+  border-color: #00e5ff;
 }
 
 .overlay {

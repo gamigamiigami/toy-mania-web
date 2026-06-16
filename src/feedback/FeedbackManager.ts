@@ -1,59 +1,61 @@
 import { FeedbackConfig } from '../config/GameConfig';
 import type { Vec2 } from '../core/types';
 
-export type MarkerKind = 'hit' | 'miss' | 'shot';
-
-export interface Marker {
-  kind: MarkerKind;
+/** 命中リングマーカー。 */
+export interface HitMarker {
   position: Vec2;
-  /** 残り寿命 (秒) */
   life: number;
-  /** 初期寿命 (フェード計算用) */
   maxLife: number;
+}
+
+/** フローティングスコア表示。 */
+export interface ScoreText {
+  position: Vec2;
+  life: number;
+  maxLife: number;
+  text: string;
+  big: boolean;
 }
 
 /**
  * FeedbackManager
- * 責務: Hit / Miss の着弾マーカーを保持・更新する。
- *       プレイヤーが狙いを修正できる手掛かりを提供する。
+ * 責務: 命中マーカーとフローティングスコアの保持・更新。
+ *       「命中時に必ず スコア表示 + 命中マーカー」を担保する。
  */
 export class FeedbackManager {
-  private markers: Marker[] = [];
+  private markers: HitMarker[] = [];
+  private scores: ScoreText[] = [];
 
-  /** 発射のたびに呼ぶ。命中/外れに関わらず「撃った」見た目を出す。 */
-  addShot(position: Vec2): void {
+  /** 命中フィードバック (マーカー + スコア) をまとめて追加。 */
+  addHit(position: Vec2, score: number): void {
     this.markers.push({
-      kind: 'shot',
-      position: { ...position },
-      life: FeedbackConfig.shotLifeSec,
-      maxLife: FeedbackConfig.shotLifeSec,
-    });
-  }
-
-  addHit(position: Vec2): void {
-    this.markers.push({
-      kind: 'hit',
       position: { ...position },
       life: FeedbackConfig.hitMarkerLifeSec,
       maxLife: FeedbackConfig.hitMarkerLifeSec,
     });
-  }
-
-  addMiss(position: Vec2): void {
-    this.markers.push({
-      kind: 'miss',
-      position: { ...position },
-      life: FeedbackConfig.missMarkerLifeSec,
-      maxLife: FeedbackConfig.missMarkerLifeSec,
-    });
+    if (score > 0) {
+      this.scores.push({
+        position: { ...position },
+        life: FeedbackConfig.scoreTextLifeSec,
+        maxLife: FeedbackConfig.scoreTextLifeSec,
+        text: `+${score}`,
+        big: score >= FeedbackConfig.bigScoreThreshold,
+      });
+    }
   }
 
   update(dt: number): void {
     for (const m of this.markers) m.life -= dt;
+    for (const s of this.scores) s.life -= dt;
     this.markers = this.markers.filter((m) => m.life > 0);
+    this.scores = this.scores.filter((s) => s.life > 0);
   }
 
-  getMarkers(): readonly Marker[] {
+  getMarkers(): readonly HitMarker[] {
     return this.markers;
+  }
+
+  getScoreTexts(): readonly ScoreText[] {
+    return this.scores;
   }
 }

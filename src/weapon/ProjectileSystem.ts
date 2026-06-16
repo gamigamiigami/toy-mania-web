@@ -59,4 +59,9 @@ export class ProjectileSystem {
   getProjectiles(): readonly Projectile[] {
     return this.projectiles;
   }
+
+  /** 全弾を消す (テンプレート切替時など)。 */
+  clear(): void {
+    this.projectiles = [];
+  }
 }
