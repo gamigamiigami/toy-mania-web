@@ -1,12 +1,14 @@
 import {
   CursorConfig,
   FeedbackConfig,
+  ProjectileConfig,
   TargetConfig,
 } from '../config/GameConfig';
 import { TargetState, TrackingState } from '../core/types';
 import type { CursorController } from '../cursor/CursorController';
 import type { FeedbackManager } from '../feedback/FeedbackManager';
 import type { TargetManager } from '../target/TargetManager';
+import type { ProjectileSystem } from '../weapon/ProjectileSystem';
 
 /**
  * Renderer
@@ -29,13 +31,16 @@ export class Renderer {
     targets: TargetManager,
     cursor: CursorController,
     feedback: FeedbackManager,
+    projectiles: ProjectileSystem,
   ): void {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     this.drawVideoMirrored();
     this.drawTargets(targets);
+    this.drawProjectiles(projectiles);
     this.drawMarkers(feedback);
+    this.drawAimGuide(cursor, projectiles);
     this.drawCursor(cursor);
   }
 
@@ -65,51 +70,76 @@ export class Renderer {
     }
   }
 
-  private drawMarkers(feedback: FeedbackManager): void {
-    const { ctx, canvas } = this;
-    for (const m of feedback.getMarkers()) {
-      const alpha = Math.max(0, m.life / m.maxLife);
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      if (m.kind === 'shot') {
-        // レーザーの曳光線: 画面下の銃口から着弾点へ。
-        const mx = FeedbackConfig.muzzleX * canvas.width;
-        const my = FeedbackConfig.muzzleY * canvas.height;
-        ctx.strokeStyle = FeedbackConfig.shotColor;
-        ctx.lineWidth = FeedbackConfig.shotWidth;
-        ctx.shadowColor = FeedbackConfig.shotColor;
-        ctx.shadowBlur = 16;
+  /** 弾とその軌跡 (Trail) を描画する。外した方向が線で残る。 */
+  private drawProjectiles(projectiles: ProjectileSystem): void {
+    const { ctx } = this;
+    for (const p of projectiles.getProjectiles()) {
+      // Trail: 古い点ほど細く・薄く (幅 50% → 0% テーパー)。
+      const pts = p.trail;
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1];
+        const b = pts[i];
+        const ratio = i / pts.length; // 新しいほど 1 に近い
+        ctx.save();
+        ctx.globalAlpha = ratio * 0.8;
+        ctx.strokeStyle = ProjectileConfig.color;
+        ctx.lineWidth = p.radius * ratio; // テーパー
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(mx, my);
-        ctx.lineTo(m.position.x, m.position.y);
+        ctx.moveTo(a.pos.x, a.pos.y);
+        ctx.lineTo(b.pos.x, b.pos.y);
         ctx.stroke();
-        // 着弾点の小さな閃光
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(m.position.x, m.position.y, 8, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (m.kind === 'miss') {
-        // Miss: X マーカー (着弾点)
-        const r = FeedbackConfig.missMarkerRadius;
-        ctx.strokeStyle = FeedbackConfig.missMarkerColor;
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(m.position.x - r, m.position.y - r);
-        ctx.lineTo(m.position.x + r, m.position.y + r);
-        ctx.moveTo(m.position.x + r, m.position.y - r);
-        ctx.lineTo(m.position.x - r, m.position.y + r);
-        ctx.stroke();
-      } else {
-        // Hit: 拡がるリング
-        const r = 20 + (1 - alpha) * 40;
-        ctx.strokeStyle = FeedbackConfig.hitMarkerColor;
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.arc(m.position.x, m.position.y, r, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.restore();
       }
+      // 弾本体
+      ctx.save();
+      ctx.fillStyle = ProjectileConfig.color;
+      ctx.shadowColor = ProjectileConfig.color;
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(p.position.x, p.position.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
+  }
+
+  private drawMarkers(feedback: FeedbackManager): void {
+    const { ctx } = this;
+    for (const m of feedback.getMarkers()) {
+      if (m.kind !== 'hit') continue;
+      const alpha = Math.max(0, m.life / m.maxLife);
+      // Hit: 拡がるリング
+      const r = 20 + (1 - alpha) * 40;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = FeedbackConfig.hitMarkerColor;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(m.position.x, m.position.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** 銃口から照準点へ向かう破線。狙っている「方向」を示す (着弾点ではない)。 */
+  private drawAimGuide(
+    cursor: CursorController,
+    projectiles: ProjectileSystem,
+  ): void {
+    if (cursor.getState() !== TrackingState.Tracking) return;
+    const { ctx } = this;
+    const muzzle = projectiles.getMuzzle();
+    const aim = cursor.getPosition();
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = CursorConfig.colorTracking;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 12]);
+    ctx.beginPath();
+    ctx.moveTo(muzzle.x, muzzle.y);
+    ctx.lineTo(aim.x, aim.y);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawCursor(cursor: CursorController): void {
