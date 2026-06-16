@@ -128,7 +128,7 @@ export const TargetConfig = {
  * いずれも X/Y/Z を使い、平面配置を避ける。
  */
 export const TemplatesConfig = {
-  default: 'sliders' as TemplateName,
+  default: 'hameggs' as TemplateName,
 
   /** Template1 横移動。レーンごとに z(奥) と y(高さ) を変える。 */
   sliders: {
@@ -172,6 +172,46 @@ export const TemplatesConfig = {
     /** 連鎖達成で出現する Bonus の生存時間 (秒) と位置。 */
     bonusLifeSec: 5,
     bonusPos: { x: 0, y: 0.8, z: 7 },
+  },
+
+  /**
+   * Ham & Eggs (本戦1面の再現)。牧場シーン + 動く的 + 隠しギミック。
+   * キツネ(Trigger)を撃つと鶏小屋の扉が開き、ニワトリ(1000点)が飛び出す。
+   */
+  hameggs: {
+    /** ポップアップ(イタチ): 手前の柵の陰から出現。 */
+    weasels: {
+      spots: [
+        { x: -2.2, y: -3.0, z: 10.5 },
+        { x: 0, y: -3.0, z: 10.5 },
+        { x: 2.2, y: -3.0, z: 10.5 },
+      ],
+      holdSec: 2,
+      respawnSec: 1,
+    },
+    /** 横移動(ブタ/ヒツジ): 左の柵沿いを等速で。 */
+    sliders: { z: 12, y: -2.7, speed: 2.5, count: 2 },
+    /** 上空(アヒル/トリ): サインカーブで飛行。 */
+    flyers: { z: 17, baseY: 2.6, amp: 1.0, speed: 3, count: 2, xRange: 6 },
+    /** トリガー(屋根のキツネ): 中央小屋の屋根に静止。 */
+    fox: { x: 0, y: 1.7, z: 15 },
+    /** ボーナス(小屋のニワトリ): 扉が開いて出現。 */
+    chickens: {
+      count: 5,
+      positions: [
+        { x: -1.6, y: -0.4, z: 14 },
+        { x: -0.8, y: 0.2, z: 14 },
+        { x: 0, y: -0.2, z: 14 },
+        { x: 0.8, y: 0.3, z: 14 },
+        { x: 1.6, y: -0.4, z: 14 },
+      ],
+      score: 1000,
+      windowSec: 8,
+    },
+    /** 扉の開閉アニメ時間 (秒)。 */
+    doorOpenSec: 0.4,
+    /** 風車の回転速度 (rad/秒)。 */
+    windmillSpeed: 1.2,
   },
 } as const;
 
