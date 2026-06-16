@@ -2,8 +2,13 @@ import {
   FilesetResolver,
   HandLandmarker,
 } from '@mediapipe/tasks-vision';
-import { MediaPipeConfig } from '../config/GameConfig';
+import { MediaPipeConfig, PointingConfig } from '../config/GameConfig';
 import { TrackingState, type PointerResult, type Vec2 } from '../core/types';
+
+/** 0..1 にクランプする。延長で画面外に出た狙いを端に留める。 */
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
 
 /**
  * MediaPipeBridge
@@ -56,12 +61,25 @@ export class MediaPipeBridge {
     }
 
     const tip = hand[MediaPipeConfig.indexFingerTipLandmark];
-    if (!tip) {
+    const base = hand[MediaPipeConfig.indexFingerBaseLandmark];
+    if (!tip || !base) {
       return { state: TrackingState.Lost, position: null };
     }
 
     // カメラは鏡像表示するため x を反転する。
-    const position: Vec2 = { x: 1 - tip.x, y: tip.y };
+    const tipX = 1 - tip.x;
+    const tipY = tip.y;
+    const baseX = 1 - base.x;
+    const baseY = base.y;
+
+    // レーザーポインター方式: 付け根→指先の向きを指先からさらに延長した点を狙う。
+    const dirX = tipX - baseX;
+    const dirY = tipY - baseY;
+    const k = PointingConfig.extension;
+    const position: Vec2 = {
+      x: clamp01(tipX + dirX * k),
+      y: clamp01(tipY + dirY * k),
+    };
     return { state: TrackingState.Tracking, position };
   }
 
