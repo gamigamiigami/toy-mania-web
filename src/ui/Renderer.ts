@@ -66,12 +66,29 @@ export class Renderer {
   }
 
   private drawMarkers(feedback: FeedbackManager): void {
-    const { ctx } = this;
+    const { ctx, canvas } = this;
     for (const m of feedback.getMarkers()) {
       const alpha = Math.max(0, m.life / m.maxLife);
       ctx.save();
       ctx.globalAlpha = alpha;
-      if (m.kind === 'miss') {
+      if (m.kind === 'shot') {
+        // レーザーの曳光線: 画面下の銃口から着弾点へ。
+        const mx = FeedbackConfig.muzzleX * canvas.width;
+        const my = FeedbackConfig.muzzleY * canvas.height;
+        ctx.strokeStyle = FeedbackConfig.shotColor;
+        ctx.lineWidth = FeedbackConfig.shotWidth;
+        ctx.shadowColor = FeedbackConfig.shotColor;
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.moveTo(mx, my);
+        ctx.lineTo(m.position.x, m.position.y);
+        ctx.stroke();
+        // 着弾点の小さな閃光
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(m.position.x, m.position.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (m.kind === 'miss') {
         // Miss: X マーカー (着弾点)
         const r = FeedbackConfig.missMarkerRadius;
         ctx.strokeStyle = FeedbackConfig.missMarkerColor;
