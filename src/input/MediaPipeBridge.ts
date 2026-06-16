@@ -18,6 +18,11 @@ function clamp01(v: number): number {
 export class MediaPipeBridge {
   private landmarker: HandLandmarker | null = null;
   private lastVideoTime = -1;
+  /** 直前の検出結果。同一映像フレームではこれを維持する(点滅防止)。 */
+  private lastResult: PointerResult = {
+    state: TrackingState.Lost,
+    position: null,
+  };
 
   /** モデルとランタイムを初期化する (CDN から取得)。 */
   async init(): Promise<void> {
@@ -45,25 +50,23 @@ export class MediaPipeBridge {
    */
   detect(video: HTMLVideoElement, timestampMs: number): PointerResult {
     if (!this.landmarker || video.readyState < 2) {
-      return { state: TrackingState.Lost, position: null };
+      return this.lastResult;
     }
 
-    // 同一フレームを二重処理しない
+    // 同一映像フレームでは推論せず、直前の結果を維持する。
+    // (PCは描画ループがカメラfpsより速く、毎回Lostを返すと点滅・発射停止になる)
     if (video.currentTime === this.lastVideoTime) {
-      return { state: TrackingState.Lost, position: null };
+      return this.lastResult;
     }
     this.lastVideoTime = video.currentTime;
 
     const result = this.landmarker.detectForVideo(video, timestampMs);
     const hand = result.landmarks?.[0];
-    if (!hand) {
-      return { state: TrackingState.Lost, position: null };
-    }
-
-    const tip = hand[MediaPipeConfig.indexFingerTipLandmark];
-    const base = hand[MediaPipeConfig.indexFingerBaseLandmark];
-    if (!tip || !base) {
-      return { state: TrackingState.Lost, position: null };
+    const tip = hand?.[MediaPipeConfig.indexFingerTipLandmark];
+    const base = hand?.[MediaPipeConfig.indexFingerBaseLandmark];
+    if (!hand || !tip || !base) {
+      this.lastResult = { state: TrackingState.Lost, position: null };
+      return this.lastResult;
     }
 
     // カメラは鏡像表示するため x を反転する。
@@ -80,7 +83,8 @@ export class MediaPipeBridge {
       x: clamp01(tipX + dirX * k),
       y: clamp01(tipY + dirY * k),
     };
-    return { state: TrackingState.Tracking, position };
+    this.lastResult = { state: TrackingState.Tracking, position };
+    return this.lastResult;
   }
 
   dispose(): void {

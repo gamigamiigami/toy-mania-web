@@ -325,22 +325,29 @@ export class Renderer {
     const ch = img.height / AssetConfig.sheetRows;
     const col = icon % AssetConfig.sheetCols;
     const row = Math.floor(icon / AssetConfig.sheetCols);
+    // セルから余白・ヒモを除いた正方形を切り抜き、円いっぱいに収める。
+    const side = Math.min(cw, ch) * AssetConfig.spriteCrop;
+    const srcX = col * cw + (cw - side) / 2;
+    const srcY =
+      row * ch + (ch - side) / 2 + ch * AssetConfig.spriteLoopOffset;
     ctx.save();
     if (isHit) ctx.globalAlpha = 0.5;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(img, col * cw, row * ch, cw, ch, cx - r, cy - r, r * 2, r * 2);
+    ctx.drawImage(img, srcX, srcY, side, side, cx - r, cy - r, r * 2, r * 2);
     ctx.restore();
-    // ふち
-    ctx.save();
-    ctx.strokeStyle = isHit ? '#ffffff' : 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = Math.max(2, r * 0.06);
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    // 命中時のみ白フチで強調 (通常は絵の赤リングをそのまま活かす)。
+    if (isHit) {
+      ctx.save();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(2, r * 0.08);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   private drawProjectiles(
