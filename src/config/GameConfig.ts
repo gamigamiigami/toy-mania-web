@@ -41,13 +41,13 @@ export const PointingConfig = {
    */
   neutralX: 0,
   neutralY: -0.22,
-  sensitivityX: 2.8,
-  sensitivityY: 2.8,
+  sensitivityX: 6.5,
+  sensitivityY: 6.5,
 } as const;
 
 export const CursorConfig = {
-  /** SmoothDamp 相当の平滑化時間 (秒)。小さいほど追従が速い。 */
-  smoothTime: 0.08,
+  /** SmoothDamp 相当の平滑化時間 (秒)。小さいほど追従が速い。高感度時の手ブレ抑制。 */
+  smoothTime: 0.12,
   /** DeadZone 半径 (px)。微小なブレを無視する。 */
   deadZoneRadius: 4,
   radius: 18,
