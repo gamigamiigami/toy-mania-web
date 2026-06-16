@@ -54,15 +54,49 @@ export const WeaponConfig = {
   fireIntervalSec: 0.5,
 } as const;
 
+/**
+ * 3D ワールド設定。
+ * x:右+ / y:上+ / z:奥+。カメラは原点(0,0,0)で +z 方向を向く。
+ * プレイヤーはカメラ手前に立ち、画面の奥(+z)に広がるエリアへ投げ込む。
+ */
+export const WorldConfig = {
+  /** 垂直画角 (度)。透視投影の強さ。 */
+  fovVDeg: 55,
+  /** 重力加速度 (ワールド単位/秒^2、下方向)。遠い的ほど落下量が増える。 */
+  gravity: 10,
+  /** 投擲初速 (ワールド単位/秒)。照準方向(レイ)へこの速さで投げる。 */
+  throwSpeed: 18,
+  /** 投擲の発射元 (カメラ少し下=手元のイメージ)。 */
+  muzzle: { x: 0, y: -0.5, z: 0.3 },
+  /** ボールのワールド半径。 */
+  ballRadius: 0.3,
+  ballColor: '#00e5ff',
+  /** 軌跡 (Trail) の生存時間 (秒)。外した方向を線として残す。 */
+  trailLifeSec: 0.12,
+  /** 当たり判定の倍率 (ガバガバ判定)。 */
+  hitboxMultiplier: 1.4,
+  /** 床の高さ。これより下に落ちたら消す。 */
+  floorY: -4,
+  /** これより奥(z)へ行ったら消す (的の後ろを通過)。 */
+  maxZ: 22,
+  /** 念のための最大生存時間 (秒)。 */
+  maxLifeSec: 4,
+} as const;
+
 export const TargetConfig = {
-  /** 当たり判定は大きめに設定する */
-  radius: 70,
-  /** 同時に存在するターゲット数 (MVPは1個) */
+  /** ターゲットのワールド半径。 */
+  radius: 0.7,
+  /** 同時に存在するターゲット数 (最小3Dコアは1個)。 */
   maxCount: 1,
   /** 命中後に再出現するまでの待機 (秒) */
   respawnDelaySec: 0.4,
-  /** 画面端からのスポーン余白 (px) */
-  spawnMargin: 120,
+  /** スポーン範囲 (ワールド座標)。 */
+  xRange: 3,
+  yMin: -1,
+  yMax: 2.5,
+  /** 奥行きの範囲 (近い〜遠い)。遠いほど重力で落ちるので上を狙う必要がある。 */
+  zMin: 6,
+  zMax: 15,
   color: '#ffd60a',
   colorHit: '#ffffff',
   /** Hit 状態の表示時間 (秒) */
@@ -72,42 +106,6 @@ export const TargetConfig = {
 export const ScoreConfig = {
   /** ターゲット命中時の加算スコア */
   perHit: 100,
-} as const;
-
-export const ProjectileConfig = {
-  /**
-   * 弾道モード。
-   *  'linear'   : 重力なし・照準方向へ固定時間で直進 (新仕様書の既定)。
-   *  'parabola' : 重力ありの放物線 (輪投げ的)。設定変更だけで切替可能。
-   */
-  mode: 'linear' as 'linear' | 'parabola',
-
-  /** 発射元 (画面に対する相対位置 0..1)。画面下部中央=仮想の銃口。 */
-  muzzleX: 0.5,
-  muzzleY: 1.0,
-
-  // --- linear モード ---
-  /** 発射から照準点(Z平面)到達までの固定時間 (秒)。距離によらず一定。 */
-  travelTimeSec: 0.15,
-
-  // --- parabola モード ---
-  /** 発射速度 (px/秒)。照準方向へこの速さで射出する。 */
-  launchSpeed: 1500,
-  /** 重力加速度 (px/秒^2)。下方向。これで放物線になる。 */
-  gravity: 2200,
-
-  // --- 共通 ---
-  /** 弾の半径 = 画面高さ * この比率。仕様書: 直径3% → 半径1.5%。 */
-  radiusRatio: 0.015,
-  /** 当たり判定の倍率 (ガバガバ判定)。仕様書 130〜150%。 */
-  hitboxMultiplier: 1.4,
-  color: '#00e5ff',
-  /** 軌跡 (Trail) の生存時間 (秒)。外した方向を線として残す。 */
-  trailLifeSec: 0.1,
-  /** 画面外に出たと判断する余白 (px) */
-  cullMargin: 120,
-  /** 念のための最大生存時間 (秒) */
-  maxLifeSec: 4,
 } as const;
 
 export const FeedbackConfig = {

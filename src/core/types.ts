@@ -8,6 +8,13 @@ export interface Vec2 {
   y: number;
 }
 
+/** 3D ワールド座標。x:右+ / y:上+ / z:奥+ (カメラから画面の奥へ)。 */
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
 /** トラッキング状態 */
 export enum TrackingState {
   Tracking = 'Tracking',
