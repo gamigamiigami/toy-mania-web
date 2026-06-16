@@ -32,16 +32,15 @@ export const MediaPipeConfig = {
 
 export const PointingConfig = {
   /**
-   * レイキャスト・ポインティング (本物のレーザー/Wii)。
-   * 手首→指先の3Dベクトル(x,y,z=奥行き)から「指している水平/垂直の角度」を求め、
-   * 角度を画面にマッピングする。z(奥行き)を使うので手の位置に依存せず「指した先」に出る。
-   *
-   * maxAngleDeg: 画面端に対応する角度。小さいほど少しの傾きで端まで届く。
-   * neutral*Deg : 画面中央を指したときの角度オフセット(中央がズレたら調整)。
+   * 指先の2D位置マッピング (z=奥行きは使わない=暴れない・安定優先)。
+   * aim = 0.5 + (tip - center) * gain
+   *  center: 画面中央に対応する指先の正規化位置(手が下めに映るならcenterYを上げる)。
+   *  gain  : 大きいほど少しの指先移動で画面端まで届く。
    */
-  maxAngleDeg: 28,
-  neutralXDeg: 0,
-  neutralYDeg: 0,
+  centerX: 0.5,
+  centerY: 0.5,
+  gainX: 1.9,
+  gainY: 1.9,
 } as const;
 
 export const CursorConfig = {
@@ -58,8 +57,8 @@ export const CursorConfig = {
    *  minCutoff: 小さいほど静止時に強く平滑化(プルプル減)。ただし遅延が増える。
    *  beta     : 大きいほど素早い動きに即追従(遅延減)。
    */
-  filterMinCutoff: 0.9,
-  filterBeta: 1.8,
+  filterMinCutoff: 0.6,
+  filterBeta: 1.5,
   filterDCutoff: 1.0,
 } as const;
 

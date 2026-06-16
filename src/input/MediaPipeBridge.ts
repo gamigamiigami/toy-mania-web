@@ -69,25 +69,13 @@ export class MediaPipeBridge {
       return this.lastResult;
     }
 
-    // 手首→指先の3Dベクトル。z は奥行き(MediaPipe: 負ほどカメラに近い)。
-    // カメラは鏡像表示するため x を反転する。
-    const dx = (1 - tip.x) - (1 - base.x); // = base.x - tip.x → 右が正
-    const dy = tip.y - base.y;
-    const dz = tip.z - base.z;
-    // カメラ(画面)へ向かう量。指先がカメラに近い(tz<bz)ほど大きい。
-    const toward = Math.max(0.02, -dz);
-
-    // 指している水平/垂直の角度 (奥行きを使うのがミソ。右を指す=横ではなく
-    // 奥行き方向に回るので、z を見ないと角度が出ない)。
-    const angX = Math.atan2(dx, toward); // 右が正(rad)
-    const angY = Math.atan2(dy, toward); // 下が正(rad)
-
-    const range = (PointingConfig.maxAngleDeg * Math.PI) / 180;
-    const nX = (PointingConfig.neutralXDeg * Math.PI) / 180;
-    const nY = (PointingConfig.neutralYDeg * Math.PI) / 180;
+    // 指先の2D位置を使う(zは使わない=暴れ防止)。鏡像表示のため x を反転。
+    const tipX = 1 - tip.x;
+    const tipY = tip.y;
+    // 中央基準にゲインを掛けて画面端まで届かせる。
     const position: Vec2 = {
-      x: clamp01(0.5 + (angX - nX) / (2 * range)),
-      y: clamp01(0.5 + (angY - nY) / (2 * range)),
+      x: clamp01(0.5 + (tipX - PointingConfig.centerX) * PointingConfig.gainX),
+      y: clamp01(0.5 + (tipY - PointingConfig.centerY) * PointingConfig.gainY),
     };
     this.lastResult = { state: TrackingState.Tracking, position };
     return this.lastResult;
