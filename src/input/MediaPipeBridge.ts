@@ -69,23 +69,25 @@ export class MediaPipeBridge {
       return this.lastResult;
     }
 
+    // 手首→指先の3Dベクトル。z は奥行き(MediaPipe: 負ほどカメラに近い)。
     // カメラは鏡像表示するため x を反転する。
-    const tipX = 1 - tip.x;
-    const tipY = tip.y;
-    const baseX = 1 - base.x;
-    const baseY = base.y;
+    const dx = (1 - tip.x) - (1 - base.x); // = base.x - tip.x → 右が正
+    const dy = tip.y - base.y;
+    const dz = tip.z - base.z;
+    // カメラ(画面)へ向かう量。指先がカメラに近い(tz<bz)ほど大きい。
+    const toward = Math.max(0.02, -dz);
 
-    // 角度ポインティング: 手首→指先の「向き」だけで狙う(手の位置に依存しない)。
-    // 平行移動しても dir は不変なので、傾き(角度)だけで全画面をなぞれる。
-    const dirX = tipX - baseX;
-    const dirY = tipY - baseY;
+    // 指している水平/垂直の角度 (奥行きを使うのがミソ。右を指す=横ではなく
+    // 奥行き方向に回るので、z を見ないと角度が出ない)。
+    const angX = Math.atan2(dx, toward); // 右が正(rad)
+    const angY = Math.atan2(dy, toward); // 下が正(rad)
+
+    const range = (PointingConfig.maxAngleDeg * Math.PI) / 180;
+    const nX = (PointingConfig.neutralXDeg * Math.PI) / 180;
+    const nY = (PointingConfig.neutralYDeg * Math.PI) / 180;
     const position: Vec2 = {
-      x: clamp01(
-        0.5 + (dirX - PointingConfig.neutralX) * PointingConfig.sensitivityX,
-      ),
-      y: clamp01(
-        0.5 + (dirY - PointingConfig.neutralY) * PointingConfig.sensitivityY,
-      ),
+      x: clamp01(0.5 + (angX - nX) / (2 * range)),
+      y: clamp01(0.5 + (angY - nY) / (2 * range)),
     };
     this.lastResult = { state: TrackingState.Tracking, position };
     return this.lastResult;

@@ -32,17 +32,16 @@ export const MediaPipeConfig = {
 
 export const PointingConfig = {
   /**
-   * 角度ポインティング (Wii/レーザー方式)。
-   * 手首→指先の「向きベクトル」だけでカーソルを決める。手の位置(平行移動)には依存しない。
-   * aim = 0.5 + (dir - neutral) * sensitivity
+   * レイキャスト・ポインティング (本物のレーザー/Wii)。
+   * 手首→指先の3Dベクトル(x,y,z=奥行き)から「指している水平/垂直の角度」を求め、
+   * 角度を画面にマッピングする。z(奥行き)を使うので手の位置に依存せず「指した先」に出る。
    *
-   * neutral: 画面中央を指しているときの向き(手を立てて前方を指すと指先がやや上=yは負)。
-   * sensitivity: 大きいほど少しの傾きで画面端まで届く。
+   * maxAngleDeg: 画面端に対応する角度。小さいほど少しの傾きで端まで届く。
+   * neutral*Deg : 画面中央を指したときの角度オフセット(中央がズレたら調整)。
    */
-  neutralX: 0,
-  neutralY: -0.22,
-  sensitivityX: 6.5,
-  sensitivityY: 6.5,
+  maxAngleDeg: 28,
+  neutralXDeg: 0,
+  neutralYDeg: 0,
 } as const;
 
 export const CursorConfig = {
