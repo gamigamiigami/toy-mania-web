@@ -1,4 +1,5 @@
 import { CameraConfig } from '../config/GameConfig';
+import { Camera } from './Camera';
 import { CursorController } from '../cursor/CursorController';
 import { FeedbackManager } from '../feedback/FeedbackManager';
 import { MediaPipeBridge } from '../input/MediaPipeBridge';
@@ -19,6 +20,7 @@ import { Renderer } from '../ui/Renderer';
  */
 export class GameEngine {
   private readonly bridge = new MediaPipeBridge();
+  private readonly camera: Camera;
   private readonly cursor: CursorController;
   private readonly targets: TargetManager;
   private readonly projectiles: ProjectileSystem;
@@ -43,9 +45,10 @@ export class GameEngine {
     canvas.width = w;
     canvas.height = h;
 
+    this.camera = new Camera(w, h);
     this.cursor = new CursorController(w, h);
-    this.targets = new TargetManager(w, h);
-    this.projectiles = new ProjectileSystem(w, h);
+    this.targets = new TargetManager();
+    this.projectiles = new ProjectileSystem();
     this.renderer = new Renderer(canvas, video);
     this.autoFire = new AutoFireSystem(() => this.handleFire());
   }
@@ -90,7 +93,9 @@ export class GameEngine {
     const hits = this.projectiles.update(dt, this.targets.getTargets());
     for (const hit of hits) {
       this.score.addHit();
-      this.feedback.addHit(hit.point);
+      // 命中点(3D)をスクリーンへ投影してフィードバック表示。
+      const p = this.camera.project(hit.point);
+      if (p.visible) this.feedback.addHit({ x: p.x, y: p.y });
       this.onScoreChange(this.score.getScore());
     }
     this.feedback.update(dt);
@@ -101,14 +106,16 @@ export class GameEngine {
       this.cursor,
       this.feedback,
       this.projectiles,
+      this.camera,
     );
 
     this.rafId = requestAnimationFrame(this.loop);
   };
 
-  /** AutoFireSystem からの発射イベント。照準方向へ弾を発射する。 */
+  /** AutoFireSystem からの発射イベント。照準レイ方向へボールを投げる。 */
   private handleFire(): void {
-    this.projectiles.launch(this.cursor.getPosition());
+    const ray = this.camera.screenToRay(this.cursor.getPosition());
+    this.projectiles.launch(ray);
   }
 
   stop(): void {

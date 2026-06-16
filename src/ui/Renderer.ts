@@ -1,9 +1,10 @@
 import {
   CursorConfig,
   FeedbackConfig,
-  ProjectileConfig,
+  WorldConfig,
   TargetConfig,
 } from '../config/GameConfig';
+import type { Camera } from '../core/Camera';
 import { TargetState, TrackingState } from '../core/types';
 import type { CursorController } from '../cursor/CursorController';
 import type { FeedbackManager } from '../feedback/FeedbackManager';
@@ -12,7 +13,7 @@ import type { ProjectileSystem } from '../weapon/ProjectileSystem';
 
 /**
  * Renderer
- * 責務: ゲーム状態を Canvas へ描画する (HTML5 Canvas)。
+ * 責務: 3Dワールドを Camera で透視投影し Canvas へ描画する。
  *       状態を持たず、与えられたモジュールを読み取って描くだけ。
  */
 export class Renderer {
@@ -32,15 +33,17 @@ export class Renderer {
     cursor: CursorController,
     feedback: FeedbackManager,
     projectiles: ProjectileSystem,
+    camera: Camera,
   ): void {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     this.drawVideoMirrored();
-    this.drawTargets(targets);
-    this.drawProjectiles(projectiles);
+    // 奥のものから描く (ペインターズアルゴリズム)。
+    this.drawTargets(targets, camera);
+    this.drawProjectiles(projectiles, camera);
     this.drawMarkers(feedback);
-    this.drawAimGuide(cursor, projectiles);
+    this.drawAimGuide(cursor);
     this.drawCursor(cursor);
   }
 
@@ -56,48 +59,65 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawTargets(targets: TargetManager): void {
+  private drawTargets(targets: TargetManager, camera: Camera): void {
     const { ctx } = this;
-    for (const t of targets.getTargets()) {
+    // 奥(z大)から手前(z小)の順に描画。
+    const sorted = [...targets.getTargets()].sort(
+      (a, b) => b.position.z - a.position.z,
+    );
+    for (const t of sorted) {
+      const p = camera.project(t.position);
+      if (!p.visible) continue;
+      const r = t.radius * p.scale;
       const isHit = t.state === TargetState.Hit;
       ctx.beginPath();
-      ctx.arc(t.position.x, t.position.y, t.radius, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx.fillStyle = isHit ? TargetConfig.colorHit : TargetConfig.color;
       ctx.fill();
-      ctx.lineWidth = 4;
+      ctx.lineWidth = Math.max(2, r * 0.06);
       ctx.strokeStyle = 'rgba(0,0,0,0.4)';
       ctx.stroke();
     }
   }
 
-  /** 弾とその軌跡 (Trail) を描画する。外した方向が線で残る。 */
-  private drawProjectiles(projectiles: ProjectileSystem): void {
+  /** ボールとその軌跡 (Trail) を投影して描画する。 */
+  private drawProjectiles(
+    projectiles: ProjectileSystem,
+    camera: Camera,
+  ): void {
     const { ctx } = this;
-    for (const p of projectiles.getProjectiles()) {
-      // Trail: 古い点ほど細く・薄く (幅 50% → 0% テーパー)。
-      const pts = p.trail;
+    const sorted = [...projectiles.getProjectiles()].sort(
+      (a, b) => b.position.z - a.position.z,
+    );
+    for (const proj of sorted) {
+      // Trail: 古い点ほど細く・薄く。
+      const pts = proj.trail;
       for (let i = 1; i < pts.length; i++) {
-        const a = pts[i - 1];
-        const b = pts[i];
-        const ratio = i / pts.length; // 新しいほど 1 に近い
+        const a = camera.project(pts[i - 1].pos);
+        const b = camera.project(pts[i].pos);
+        if (!a.visible || !b.visible) continue;
+        const ratio = i / pts.length;
         ctx.save();
-        ctx.globalAlpha = ratio * 0.8;
-        ctx.strokeStyle = ProjectileConfig.color;
-        ctx.lineWidth = p.radius * ratio; // テーパー
+        ctx.globalAlpha = ratio * 0.7;
+        ctx.strokeStyle = WorldConfig.ballColor;
+        ctx.lineWidth = Math.max(1, proj.radius * b.scale * ratio);
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(a.pos.x, a.pos.y);
-        ctx.lineTo(b.pos.x, b.pos.y);
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
         ctx.stroke();
         ctx.restore();
       }
-      // 弾本体
+      // ボール本体
+      const c = camera.project(proj.position);
+      if (!c.visible) continue;
+      const r = Math.max(1.5, proj.radius * c.scale);
       ctx.save();
-      ctx.fillStyle = ProjectileConfig.color;
-      ctx.shadowColor = ProjectileConfig.color;
+      ctx.fillStyle = WorldConfig.ballColor;
+      ctx.shadowColor = WorldConfig.ballColor;
       ctx.shadowBlur = 12;
       ctx.beginPath();
-      ctx.arc(p.position.x, p.position.y, p.radius, 0, Math.PI * 2);
+      ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -108,7 +128,6 @@ export class Renderer {
     for (const m of feedback.getMarkers()) {
       if (m.kind !== 'hit') continue;
       const alpha = Math.max(0, m.life / m.maxLife);
-      // Hit: 拡がるリング
       const r = 20 + (1 - alpha) * 40;
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -121,22 +140,18 @@ export class Renderer {
     }
   }
 
-  /** 銃口から照準点へ向かう破線。狙っている「方向」を示す (着弾点ではない)。 */
-  private drawAimGuide(
-    cursor: CursorController,
-    projectiles: ProjectileSystem,
-  ): void {
+  /** 画面下中央(手元)から照準点へ向かう破線。投げる「方向」を示す。 */
+  private drawAimGuide(cursor: CursorController): void {
     if (cursor.getState() !== TrackingState.Tracking) return;
-    const { ctx } = this;
-    const muzzle = projectiles.getMuzzle();
+    const { ctx, canvas } = this;
     const aim = cursor.getPosition();
     ctx.save();
-    ctx.globalAlpha = 0.35;
+    ctx.globalAlpha = 0.3;
     ctx.strokeStyle = CursorConfig.colorTracking;
     ctx.lineWidth = 2;
     ctx.setLineDash([10, 12]);
     ctx.beginPath();
-    ctx.moveTo(muzzle.x, muzzle.y);
+    ctx.moveTo(canvas.width / 2, canvas.height);
     ctx.lineTo(aim.x, aim.y);
     ctx.stroke();
     ctx.restore();
@@ -153,11 +168,9 @@ export class Renderer {
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = CursorConfig.lineWidth;
-    // リング
     ctx.beginPath();
     ctx.arc(p.x, p.y, CursorConfig.radius, 0, Math.PI * 2);
     ctx.stroke();
-    // 十字
     const c = CursorConfig.radius + 8;
     ctx.beginPath();
     ctx.moveTo(p.x - c, p.y);
@@ -169,7 +182,6 @@ export class Renderer {
     ctx.moveTo(p.x, p.y + 6);
     ctx.lineTo(p.x, p.y + c);
     ctx.stroke();
-    // 中心点
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
