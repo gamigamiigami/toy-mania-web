@@ -5,22 +5,23 @@ import { MediaPipeBridge } from '../input/MediaPipeBridge';
 import { ScoreManager } from '../score/ScoreManager';
 import { TargetManager } from '../target/TargetManager';
 import { AutoFireSystem } from '../weapon/AutoFireSystem';
-import { HitScanWeapon } from '../weapon/HitScanWeapon';
+import { ProjectileSystem } from '../weapon/ProjectileSystem';
 import { Renderer } from '../ui/Renderer';
 
 /**
  * GameEngine
- * 責務: 各モジュールを束ね、ゲームループ (Aim→Shot→Result→Correction) を回す。
+ * 責務: 各モジュールを束ね、ゲームループ (Aim→Shot→Flight→Result→Correction) を回す。
  *       Aim   : MediaPipeBridge + CursorController
- *       Shot  : AutoFireSystem
- *       Result: HitScanWeapon + Target + ScoreManager
- *       Correct: FeedbackManager + Renderer
+ *       Shot  : AutoFireSystem → ProjectileSystem.launch
+ *       Flight: ProjectileSystem (重力で放物線飛行)
+ *       Result: ProjectileSystem の物理衝突 + Target + ScoreManager
+ *       Correct: FeedbackManager + Renderer (弾道を見て修正)
  */
 export class GameEngine {
   private readonly bridge = new MediaPipeBridge();
   private readonly cursor: CursorController;
   private readonly targets: TargetManager;
-  private readonly weapon = new HitScanWeapon();
+  private readonly projectiles: ProjectileSystem;
   private readonly score = new ScoreManager();
   private readonly feedback = new FeedbackManager();
   private readonly autoFire: AutoFireSystem;
@@ -44,6 +45,7 @@ export class GameEngine {
 
     this.cursor = new CursorController(w, h);
     this.targets = new TargetManager(w, h);
+    this.projectiles = new ProjectileSystem(w, h);
     this.renderer = new Renderer(canvas, video);
     this.autoFire = new AutoFireSystem(() => this.handleFire());
   }
@@ -84,28 +86,29 @@ export class GameEngine {
 
     // --- 状態更新 ---
     this.targets.update(dt);
+    // Flight + Result: 弾を飛ばし、物理衝突で命中判定する。
+    const hits = this.projectiles.update(dt, this.targets.getTargets());
+    for (const hit of hits) {
+      this.score.addHit();
+      this.feedback.addHit(hit.point);
+      this.onScoreChange(this.score.getScore());
+    }
     this.feedback.update(dt);
 
-    // --- 描画 (Correction) ---
-    this.renderer.render(this.targets, this.cursor, this.feedback);
+    // --- 描画 (Correction: 弾道を見て狙いを修正) ---
+    this.renderer.render(
+      this.targets,
+      this.cursor,
+      this.feedback,
+      this.projectiles,
+    );
 
     this.rafId = requestAnimationFrame(this.loop);
   };
 
-  /** AutoFireSystem からの発射イベント。HitScan → スコア/フィードバック。 */
+  /** AutoFireSystem からの発射イベント。照準方向へ弾を発射する。 */
   private handleFire(): void {
-    const aim = this.cursor.getPosition();
-    // 命中/外れに関わらず、まず「撃った」フィードバック (曳光線) を出す。
-    this.feedback.addShot(aim);
-    const result = this.weapon.fire(aim, this.targets.getTargets());
-    if (result.hit && result.target) {
-      result.target.hit();
-      this.score.addHit();
-      this.feedback.addHit(result.point);
-      this.onScoreChange(this.score.getScore());
-    } else {
-      this.feedback.addMiss(result.point);
-    }
+    this.projectiles.launch(this.cursor.getPosition());
   }
 
   stop(): void {
