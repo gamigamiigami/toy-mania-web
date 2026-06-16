@@ -2,6 +2,7 @@
  * GameConfig
  * 責務: ゲーム全体の定数を一元管理する (Data Driven / マジックナンバー禁止)。
  */
+import { TargetType, type TemplateName } from '../core/types';
 
 export const CameraConfig = {
   /** カメラ映像の論理解像度 (ゲーム座標の基準) */
@@ -84,73 +85,110 @@ export const WorldConfig = {
 } as const;
 
 /**
- * ステージ設定。
- *  'range'  : 射撃練習場。距離違い(同じ高さ)の静止的を並べ、
- *             距離→重力落下→狙う高さの関係を学習する。
- *  'stairs' : 階段ステージ。段ごとに高さと奥行きが変わる。
- * mode を変えるだけで切替できる。
+ * アリーナ(共通3D空間)設定。床グリッドや誘導ガイドの見た目と範囲。
  */
-export const StageConfig = {
-  mode: 'range' as 'range' | 'stairs',
-
-  /** ステージの左右幅 (中心からの半幅) */
+export const ArenaConfig = {
+  /** 左右幅 (中心からの半幅)。スライダーの折返しにも使う。 */
   halfWidth: 6,
-
-  // --- range (射撃練習場) ---
-  /** 的の距離 (z, ワールド単位=メートル相当)。 */
-  rangeDistances: [3, 5, 8, 12],
-  /** 各的の左右位置 (近いほど小さく、全部画面に収まるよう散らす)。distances と同数。 */
-  rangeXs: [0, -2.5, 2.8, -3.4],
-  /** 的の高さ (全部そろえる: 距離だけが変数になる)。 */
-  rangeHeight: 0,
-
-  // --- stairs (階段) ---
-  stepCount: 4,
-  stepDepth: 3,
-  stepRise: 1.2,
-  /** 最前段の手前端の z と 上面の高さ y */
-  z0: 5,
-  y0: -2,
-
-  /** 上面と蹴上げ(前面)の色 */
-  colorTop: 'rgba(60, 90, 130, 0.55)',
-  colorRiser: 'rgba(30, 50, 80, 0.65)',
-  edgeColor: 'rgba(120, 180, 255, 0.7)',
-  /** 床グリッドの色 */
-  gridColor: 'rgba(120, 180, 255, 0.18)',
+  gridColor: 'rgba(120, 180, 255, 0.16)',
+  guideColor: 'rgba(120, 180, 255, 0.30)',
   /** 的を地面につなぐスタンド線の色 (距離の手掛かり)。 */
-  standColor: 'rgba(120, 180, 255, 0.35)',
+  standColor: 'rgba(120, 180, 255, 0.30)',
+  gridZStart: 2,
+  gridZEnd: 16,
+  gridStep: 1.5,
 } as const;
 
+/**
+ * ターゲット共通設定 + 分類ごとの色・得点。
+ */
 export const TargetConfig = {
-  /** ターゲットのワールド半径。 */
+  /** 既定のワールド半径。 */
   radius: 0.7,
-  /** 命中後に同じ位置へ再出現するまでの待機 (秒)。静止練習用。 */
-  respawnDelaySec: 0.6,
-  color: '#ffd60a',
-  colorHit: '#ffffff',
-  /** Hit 状態の表示時間 (秒) */
+  /** Hit フラッシュ表示時間 (秒)。 */
   hitFlashSec: 0.15,
+  /** 分類ごとの色。 */
+  colors: {
+    [TargetType.Normal]: '#ffd60a',
+    [TargetType.HighValue]: '#ff9f0a',
+    [TargetType.Trigger]: '#30d1ff',
+    [TargetType.Bonus]: '#ff2d55',
+  } as Record<TargetType, string>,
+  /** 分類ごとの得点。Bonus = 通常の5倍。 */
+  scores: {
+    [TargetType.Normal]: 100,
+    [TargetType.HighValue]: 300,
+    [TargetType.Trigger]: 100,
+    [TargetType.Bonus]: 500,
+  } as Record<TargetType, number>,
+} as const;
+
+/**
+ * Phase1 ステージテンプレート設定。
+ * いずれも X/Y/Z を使い、平面配置を避ける。
+ */
+export const TemplatesConfig = {
+  default: 'sliders' as TemplateName,
+
+  /** Template1 横移動。レーンごとに z(奥) と y(高さ) を変える。 */
+  sliders: {
+    lanes: [
+      { z: 4, y: -0.6, speed: 2.2, count: 2, type: TargetType.Normal },
+      { z: 7, y: 0.7, speed: 3.0, count: 2, type: TargetType.Normal },
+      { z: 11, y: 1.9, speed: 4.0, count: 1, type: TargetType.HighValue },
+    ],
+    respawnDelaySec: 0.6,
+  },
+
+  /** Template2 3×3 ポップアップ。行ごとに z(奥)・y(高さ) を変える。 */
+  matrix: {
+    rowZ: [4, 7, 10],
+    rowY: [-0.6, 0.6, 1.7],
+    cols: 3,
+    xSpacing: 2.4,
+    /** 同時表示数 */
+    activeCount: 4,
+    /** 出現時間 (秒) の範囲 */
+    lifeMin: 2,
+    lifeMax: 4,
+    /** 消滅後の再出現待ち (秒) */
+    respawnDelaySec: 0.4,
+    highValueChance: 0.25,
+    /** Trigger 出現率。撃つと Bonus が解放される。 */
+    triggerChance: 0.12,
+    /** Trigger で解放される Bonus の生存時間 (秒)。 */
+    bonusLifeSec: 5,
+  },
+
+  /** Template5 連鎖。5個を XYZ バラバラに配置。 */
+  chains: {
+    positions: [
+      { x: -3.2, y: -0.6, z: 4 },
+      { x: 2.6, y: 0.9, z: 6 },
+      { x: -1.4, y: 1.9, z: 9 },
+      { x: 3.0, y: 0.1, z: 11 },
+      { x: -3.0, y: 1.5, z: 13 },
+    ],
+    /** 連鎖達成で出現する Bonus の生存時間 (秒) と位置。 */
+    bonusLifeSec: 5,
+    bonusPos: { x: 0, y: 0.8, z: 7 },
+  },
 } as const;
 
 export const ScoreConfig = {
-  /** ターゲット命中時の加算スコア */
-  perHit: 100,
+  /** 連続命中の表示リセットまでの猶予 (秒)。 */
+  comboWindowSec: 2,
 } as const;
 
 export const FeedbackConfig = {
-  /** 着弾マーカー (Miss) の表示時間 (秒) */
-  missMarkerLifeSec: 0.7,
-  missMarkerRadius: 16,
-  missMarkerColor: '#ff9f0a',
-  /** Hit マーカーの表示時間 (秒) */
+  /** Hit マーカーの表示時間 (秒) と色。 */
   hitMarkerLifeSec: 0.5,
   hitMarkerColor: '#30d158',
-  /** 発射ごとの曳光線 (レーザー) の表示時間 (秒) */
-  shotLifeSec: 0.12,
-  shotColor: '#ff2d55',
-  shotWidth: 4,
-  /** 曳光線の発射元 (画面下端中央からの相対位置 0..1) */
-  muzzleX: 0.5,
-  muzzleY: 1.05,
+  /** フローティングスコアの表示時間 (秒) と上昇量 (px)。 */
+  scoreTextLifeSec: 0.75,
+  scoreFloatPx: 64,
+  scoreColor: '#ffffff',
+  scoreColorBig: '#ffd60a',
+  /** この得点以上は大きく強調表示。 */
+  bigScoreThreshold: 300,
 } as const;

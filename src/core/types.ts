@@ -35,3 +35,20 @@ export enum TargetState {
   Hit = 'Hit',
   Destroyed = 'Destroyed',
 }
+
+/**
+ * ターゲット分類。
+ *  Normal    : 基本ターゲット
+ *  HighValue : 高得点 (視線誘導の最優先)
+ *  Trigger   : 撃つと状況が変化する (高得点ではない)
+ *  Bonus     : 条件達成後に出現する発見の報酬 (通常の5倍)
+ */
+export enum TargetType {
+  Normal = 'Normal',
+  HighValue = 'HighValue',
+  Trigger = 'Trigger',
+  Bonus = 'Bonus',
+}
+
+/** ステージテンプレート種別 (Phase1)。 */
+export type TemplateName = 'sliders' | 'matrix' | 'chains';
