@@ -240,6 +240,10 @@ export const AssetConfig = {
   /** 的シートの分割数 (3×3 = 9アイコン)。 */
   sheetCols: 3,
   sheetRows: 3,
+  /** 各セルから切り抜く正方形の比率 (余白を除いて絵を円いっぱいに)。 */
+  spriteCrop: 0.84,
+  /** 上のヒモを避けて切り抜きを下へずらす比率 (セル高さ比)。 */
+  spriteLoopOffset: 0.05,
 } as const;
 
 /**
