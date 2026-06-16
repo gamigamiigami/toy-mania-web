@@ -53,6 +53,14 @@ export const CursorConfig = {
   colorTracking: '#00e5ff',
   colorLost: '#ff3b30',
   lineWidth: 3,
+  /**
+   * One Euro Filter のパラメータ (正規化座標 0..1 で適用)。
+   *  minCutoff: 小さいほど静止時に強く平滑化(プルプル減)。ただし遅延が増える。
+   *  beta     : 大きいほど素早い動きに即追従(遅延減)。
+   */
+  filterMinCutoff: 0.9,
+  filterBeta: 1.8,
+  filterDCutoff: 1.0,
 } as const;
 
 export const WeaponConfig = {
