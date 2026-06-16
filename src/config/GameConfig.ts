@@ -22,9 +22,20 @@ export const MediaPipeConfig = {
   numHands: 1,
   /** 人差し指先端の MediaPipe ランドマーク index */
   indexFingerTipLandmark: 8,
+  /** 人差し指付け根 (MCP) の MediaPipe ランドマーク index。指の向きの基準点。 */
+  indexFingerBaseLandmark: 5,
   minHandDetectionConfidence: 0.5,
   minHandPresenceConfidence: 0.5,
   minTrackingConfidence: 0.5,
+} as const;
+
+export const PointingConfig = {
+  /**
+   * レーザーポインター方式の延長率。
+   * 付け根→指先のベクトルを指先からさらに延長してカーソル位置を求める。
+   * 大きいほど少しの傾きで大きく動く (Wiiリモコン的)。0 にすると指先位置そのもの。
+   */
+  extension: 2.5,
 } as const;
 
 export const CursorConfig = {
