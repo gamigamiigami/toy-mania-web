@@ -321,15 +321,13 @@ export class Renderer {
   ): void {
     const { ctx, assets } = this;
     const img = assets.targets;
-    const cw = img.width / AssetConfig.sheetCols;
-    const ch = img.height / AssetConfig.sheetRows;
-    const col = icon % AssetConfig.sheetCols;
-    const row = Math.floor(icon / AssetConfig.sheetCols);
-    // セルから余白・ヒモを除いた正方形を切り抜き、円いっぱいに収める。
-    const side = Math.min(cw, ch) * AssetConfig.spriteCrop;
-    const srcX = col * cw + (cw - side) / 2;
-    const srcY =
-      row * ch + (ch - side) / 2 + ch * AssetConfig.spriteLoopOffset;
+    // 解析済みの赤リング中心・半径で切り抜く (白余白なし)。
+    const rect =
+      AssetConfig.iconRects[icon] ?? AssetConfig.iconRects[0];
+    const halfPx = rect[2] * img.width * AssetConfig.iconPad;
+    const srcX = rect[0] * img.width - halfPx;
+    const srcY = rect[1] * img.height - halfPx;
+    const side = halfPx * 2;
     ctx.save();
     if (isHit) ctx.globalAlpha = 0.5;
     ctx.beginPath();
