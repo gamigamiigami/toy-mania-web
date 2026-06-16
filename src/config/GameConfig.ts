@@ -76,10 +76,17 @@ export const ScoreConfig = {
 
 export const FeedbackConfig = {
   /** 着弾マーカー (Miss) の表示時間 (秒) */
-  missMarkerLifeSec: 0.6,
-  missMarkerRadius: 10,
+  missMarkerLifeSec: 0.7,
+  missMarkerRadius: 16,
   missMarkerColor: '#ff9f0a',
   /** Hit マーカーの表示時間 (秒) */
   hitMarkerLifeSec: 0.5,
   hitMarkerColor: '#30d158',
+  /** 発射ごとの曳光線 (レーザー) の表示時間 (秒) */
+  shotLifeSec: 0.12,
+  shotColor: '#ff2d55',
+  shotWidth: 4,
+  /** 曳光線の発射元 (画面下端中央からの相対位置 0..1) */
+  muzzleX: 0.5,
+  muzzleY: 1.05,
 } as const;

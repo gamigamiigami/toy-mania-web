@@ -95,6 +95,8 @@ export class GameEngine {
   /** AutoFireSystem からの発射イベント。HitScan → スコア/フィードバック。 */
   private handleFire(): void {
     const aim = this.cursor.getPosition();
+    // 命中/外れに関わらず、まず「撃った」フィードバック (曳光線) を出す。
+    this.feedback.addShot(aim);
     const result = this.weapon.fire(aim, this.targets.getTargets());
     if (result.hit && result.target) {
       result.target.hit();

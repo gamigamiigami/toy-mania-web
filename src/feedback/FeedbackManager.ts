@@ -1,7 +1,7 @@
 import { FeedbackConfig } from '../config/GameConfig';
 import type { Vec2 } from '../core/types';
 
-export type MarkerKind = 'hit' | 'miss';
+export type MarkerKind = 'hit' | 'miss' | 'shot';
 
 export interface Marker {
   kind: MarkerKind;
@@ -19,6 +19,16 @@ export interface Marker {
  */
 export class FeedbackManager {
   private markers: Marker[] = [];
+
+  /** 発射のたびに呼ぶ。命中/外れに関わらず「撃った」見た目を出す。 */
+  addShot(position: Vec2): void {
+    this.markers.push({
+      kind: 'shot',
+      position: { ...position },
+      life: FeedbackConfig.shotLifeSec,
+      maxLife: FeedbackConfig.shotLifeSec,
+    });
+  }
 
   addHit(position: Vec2): void {
     this.markers.push({
