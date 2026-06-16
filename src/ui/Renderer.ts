@@ -1,13 +1,15 @@
 import {
   CursorConfig,
   FeedbackConfig,
+  StageConfig,
   WorldConfig,
   TargetConfig,
 } from '../config/GameConfig';
 import type { Camera } from '../core/Camera';
-import { TargetState, TrackingState } from '../core/types';
+import { TargetState, TrackingState, type Vec3 } from '../core/types';
 import type { CursorController } from '../cursor/CursorController';
 import type { FeedbackManager } from '../feedback/FeedbackManager';
+import type { Stage } from '../stage/Stage';
 import type { TargetManager } from '../target/TargetManager';
 import type { ProjectileSystem } from '../weapon/ProjectileSystem';
 
@@ -29,6 +31,7 @@ export class Renderer {
   }
 
   render(
+    stage: Stage,
     targets: TargetManager,
     cursor: CursorController,
     feedback: FeedbackManager,
@@ -38,8 +41,11 @@ export class Renderer {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    this.drawBackground();
     this.drawVideoMirrored();
     // 奥のものから描く (ペインターズアルゴリズム)。
+    this.drawFloorGrid(camera);
+    this.drawStage(stage, camera);
     this.drawTargets(targets, camera);
     this.drawProjectiles(projectiles, camera);
     this.drawMarkers(feedback);
@@ -47,16 +53,118 @@ export class Renderer {
     this.drawCursor(cursor);
   }
 
-  /** カメラ映像を鏡像で背景に描画する。 */
+  /** 空〜地面のグラデーション背景。 */
+  private drawBackground(): void {
+    const { ctx, canvas } = this;
+    const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    g.addColorStop(0, '#0b1733');
+    g.addColorStop(0.55, '#10243f');
+    g.addColorStop(1, '#06101f');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  /** カメラ映像を鏡像で薄く重ねる (AR感)。 */
   private drawVideoMirrored(): void {
     const { ctx, canvas, video } = this;
     if (video.readyState < 2) return;
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = 0.32;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     ctx.restore();
+  }
+
+  /** 床のグリッド。奥行きの手掛かりを強める。 */
+  private drawFloorGrid(camera: Camera): void {
+    const { ctx } = this;
+    const y = WorldConfig.floorY;
+    const hw = StageConfig.halfWidth + 2;
+    const zStart = StageConfig.z0 - 2;
+    const zEnd =
+      StageConfig.z0 + StageConfig.stepCount * StageConfig.stepDepth + 3;
+
+    ctx.save();
+    ctx.strokeStyle = StageConfig.gridColor;
+    ctx.lineWidth = 1;
+    // z方向の線 (奥行き)
+    for (let x = -hw; x <= hw; x += 1.5) {
+      this.strokeLine3D(camera, { x, y, z: zStart }, { x, y, z: zEnd });
+    }
+    // x方向の線 (横)
+    for (let z = zStart; z <= zEnd; z += 1.5) {
+      this.strokeLine3D(camera, { x: -hw, y, z }, { x: hw, y, z });
+    }
+    ctx.restore();
+  }
+
+  /** 階段ステージ (各段の上面と前面) を描画する。 */
+  private drawStage(stage: Stage, camera: Camera): void {
+    const hw = stage.halfWidth;
+    // 奥の段から描く。
+    const steps = [...stage.getSteps()].sort((a, b) => b.zFar - a.zFar);
+    for (const s of steps) {
+      // 前面(蹴上げ): 手前側の縦面。
+      this.fillQuad3D(
+        camera,
+        [
+          { x: -hw, y: s.y, z: s.zNear },
+          { x: hw, y: s.y, z: s.zNear },
+          { x: hw, y: s.yBottom, z: s.zNear },
+          { x: -hw, y: s.yBottom, z: s.zNear },
+        ],
+        StageConfig.colorRiser,
+      );
+      // 上面: 水平面。
+      this.fillQuad3D(
+        camera,
+        [
+          { x: -hw, y: s.y, z: s.zFar },
+          { x: hw, y: s.y, z: s.zFar },
+          { x: hw, y: s.y, z: s.zNear },
+          { x: -hw, y: s.y, z: s.zNear },
+        ],
+        StageConfig.colorTop,
+        StageConfig.edgeColor,
+      );
+    }
+  }
+
+  /** 3Dの4頂点ポリゴンを投影して塗る。全頂点が前方にあるときのみ描画。 */
+  private fillQuad3D(
+    camera: Camera,
+    corners: Vec3[],
+    fill: string,
+    edge?: string,
+  ): void {
+    const { ctx } = this;
+    const pts = corners.map((c) => camera.project(c));
+    if (pts.some((p) => !p.visible)) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (edge) {
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private strokeLine3D(camera: Camera, a: Vec3, b: Vec3): void {
+    const { ctx } = this;
+    const pa = camera.project(a);
+    const pb = camera.project(b);
+    if (!pa.visible || !pb.visible) return;
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.stroke();
   }
 
   private drawTargets(targets: TargetManager, camera: Camera): void {
@@ -68,6 +176,16 @@ export class Renderer {
     for (const t of sorted) {
       const p = camera.project(t.position);
       if (!p.visible) continue;
+      // スタンド: 床から的までの縦線。距離(奥行き)を読み取る手掛かり。
+      ctx.save();
+      ctx.strokeStyle = StageConfig.standColor;
+      ctx.lineWidth = Math.max(1, 1.5 * p.scale * 0.05);
+      this.strokeLine3D(
+        camera,
+        { x: t.position.x, y: WorldConfig.floorY, z: t.position.z },
+        { x: t.position.x, y: t.position.y, z: t.position.z },
+      );
+      ctx.restore();
       const r = t.radius * p.scale;
       const isHit = t.state === TargetState.Hit;
       ctx.beginPath();
