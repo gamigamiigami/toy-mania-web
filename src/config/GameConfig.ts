@@ -83,20 +83,50 @@ export const WorldConfig = {
   maxLifeSec: 4,
 } as const;
 
+/**
+ * ステージ設定。
+ *  'range'  : 射撃練習場。距離違い(同じ高さ)の静止的を並べ、
+ *             距離→重力落下→狙う高さの関係を学習する。
+ *  'stairs' : 階段ステージ。段ごとに高さと奥行きが変わる。
+ * mode を変えるだけで切替できる。
+ */
+export const StageConfig = {
+  mode: 'range' as 'range' | 'stairs',
+
+  /** ステージの左右幅 (中心からの半幅) */
+  halfWidth: 6,
+
+  // --- range (射撃練習場) ---
+  /** 的の距離 (z, ワールド単位=メートル相当)。 */
+  rangeDistances: [3, 5, 8, 12],
+  /** 各的の左右位置 (近いほど小さく、全部画面に収まるよう散らす)。distances と同数。 */
+  rangeXs: [0, -2.5, 2.8, -3.4],
+  /** 的の高さ (全部そろえる: 距離だけが変数になる)。 */
+  rangeHeight: 0,
+
+  // --- stairs (階段) ---
+  stepCount: 4,
+  stepDepth: 3,
+  stepRise: 1.2,
+  /** 最前段の手前端の z と 上面の高さ y */
+  z0: 5,
+  y0: -2,
+
+  /** 上面と蹴上げ(前面)の色 */
+  colorTop: 'rgba(60, 90, 130, 0.55)',
+  colorRiser: 'rgba(30, 50, 80, 0.65)',
+  edgeColor: 'rgba(120, 180, 255, 0.7)',
+  /** 床グリッドの色 */
+  gridColor: 'rgba(120, 180, 255, 0.18)',
+  /** 的を地面につなぐスタンド線の色 (距離の手掛かり)。 */
+  standColor: 'rgba(120, 180, 255, 0.35)',
+} as const;
+
 export const TargetConfig = {
   /** ターゲットのワールド半径。 */
   radius: 0.7,
-  /** 同時に存在するターゲット数 (最小3Dコアは1個)。 */
-  maxCount: 1,
-  /** 命中後に再出現するまでの待機 (秒) */
-  respawnDelaySec: 0.4,
-  /** スポーン範囲 (ワールド座標)。 */
-  xRange: 3,
-  yMin: -1,
-  yMax: 2.5,
-  /** 奥行きの範囲 (近い〜遠い)。遠いほど重力で落ちるので上を狙う必要がある。 */
-  zMin: 6,
-  zMax: 15,
+  /** 命中後に同じ位置へ再出現するまでの待機 (秒)。静止練習用。 */
+  respawnDelaySec: 0.6,
   color: '#ffd60a',
   colorHit: '#ffffff',
   /** Hit 状態の表示時間 (秒) */

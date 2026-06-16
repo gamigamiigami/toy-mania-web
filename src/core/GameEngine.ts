@@ -4,6 +4,7 @@ import { CursorController } from '../cursor/CursorController';
 import { FeedbackManager } from '../feedback/FeedbackManager';
 import { MediaPipeBridge } from '../input/MediaPipeBridge';
 import { ScoreManager } from '../score/ScoreManager';
+import { Stage } from '../stage/Stage';
 import { TargetManager } from '../target/TargetManager';
 import { AutoFireSystem } from '../weapon/AutoFireSystem';
 import { ProjectileSystem } from '../weapon/ProjectileSystem';
@@ -21,6 +22,7 @@ import { Renderer } from '../ui/Renderer';
 export class GameEngine {
   private readonly bridge = new MediaPipeBridge();
   private readonly camera: Camera;
+  private readonly stage: Stage;
   private readonly cursor: CursorController;
   private readonly targets: TargetManager;
   private readonly projectiles: ProjectileSystem;
@@ -46,8 +48,9 @@ export class GameEngine {
     canvas.height = h;
 
     this.camera = new Camera(w, h);
+    this.stage = new Stage();
     this.cursor = new CursorController(w, h);
-    this.targets = new TargetManager();
+    this.targets = new TargetManager(this.stage);
     this.projectiles = new ProjectileSystem();
     this.renderer = new Renderer(canvas, video);
     this.autoFire = new AutoFireSystem(() => this.handleFire());
@@ -102,6 +105,7 @@ export class GameEngine {
 
     // --- 描画 (Correction: 弾道を見て狙いを修正) ---
     this.renderer.render(
+      this.stage,
       this.targets,
       this.cursor,
       this.feedback,
