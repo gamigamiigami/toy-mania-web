@@ -128,7 +128,7 @@ export const TargetConfig = {
  * いずれも X/Y/Z を使い、平面配置を避ける。
  */
 export const TemplatesConfig = {
-  default: 'hameggs' as TemplateName,
+  default: 'photo' as TemplateName,
 
   /** Template1 横移動。レーンごとに z(奥) と y(高さ) を変える。 */
   sliders: {
@@ -231,4 +231,33 @@ export const FeedbackConfig = {
   scoreColorBig: '#ffd60a',
   /** この得点以上は大きく強調表示。 */
   bigScoreThreshold: 300,
+} as const;
+
+/** 画像アセット (背景・的スプライトシート)。public/scene/ に配置。 */
+export const AssetConfig = {
+  backgroundPath: 'scene/background.png',
+  targetsPath: 'scene/targets.png',
+  /** 的シートの分割数 (3×3 = 9アイコン)。 */
+  sheetCols: 3,
+  sheetRows: 3,
+} as const;
+
+/**
+ * PhotoFarm ステージ: 背景画像 + 的スプライト。
+ * 的は固定3D位置(奥行きでサイズ差)に散らし、命中で消えて3秒後に再出現。
+ */
+export const PhotoFarmConfig = {
+  respawnSec: 3,
+  /** 的スロット。icon は的シートのインデックス(0..8)、z で大きさが変わる。 */
+  slots: [
+    { x: -3.0, y: 1.6, z: 6, icon: 0 },
+    { x: 2.2, y: 2.1, z: 7, icon: 1 },
+    { x: 0.2, y: 0.6, z: 9, icon: 2 },
+    { x: -2.1, y: -0.4, z: 8, icon: 5 },
+    { x: 3.0, y: 0.2, z: 10, icon: 8 },
+    { x: -3.6, y: 1.0, z: 11, icon: 4 },
+    { x: 1.6, y: 2.4, z: 13, icon: 3 },
+    { x: -1.0, y: 2.0, z: 12, icon: 6 },
+    { x: 3.4, y: -0.7, z: 14, icon: 7 },
+  ],
 } as const;

@@ -16,6 +16,8 @@ export interface GuideSegment {
  */
 export interface StageTemplate {
   readonly displayName: string;
+  /** 背景画像を使う場合のキー (未指定ならグラデーション背景)。 */
+  readonly backgroundKey?: string;
   /** 的の移動・寿命・再出現を進める。 */
   update(dt: number): void;
   /** 現在当たり判定/描画対象となる的。 */

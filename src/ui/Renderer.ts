@@ -1,10 +1,12 @@
 import {
   ArenaConfig,
+  AssetConfig,
   CursorConfig,
   FeedbackConfig,
   TargetConfig,
   WorldConfig,
 } from '../config/GameConfig';
+import type { Assets } from '../core/Assets';
 import type { Camera } from '../core/Camera';
 import { TargetState, TargetType, TrackingState, type Vec3 } from '../core/types';
 import type { CursorController } from '../cursor/CursorController';
@@ -23,7 +25,7 @@ export class Renderer {
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
-    private readonly video: HTMLVideoElement,
+    private readonly assets: Assets,
   ) {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D context を取得できません');
@@ -41,18 +43,24 @@ export class Renderer {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const props = template.getProps?.() ?? [];
+    const useImageBg = !!template.backgroundKey;
+    this.drawBackground(useImageBg);
 
-    this.drawBackground();
-    this.drawVideoMirrored();
-    this.drawFloorGrid(camera);
-    // 背景プロップ (手前の柵以外) を奥から描く。
-    this.drawProps(props.filter((p) => !this.isForeground(p)), camera);
-    this.drawGuides(template, camera);
-    this.drawTargets(template, camera);
-    this.drawProjectiles(projectiles, camera);
-    // 手前の遮蔽物 (柵) は的より前に描く。
-    this.drawProps(props.filter((p) => this.isForeground(p)), camera);
+    if (!useImageBg) {
+      // 描画ステージ(3D)のみ床グリッド・装飾を出す。
+      const props = template.getProps?.() ?? [];
+      this.drawFloorGrid(camera);
+      this.drawProps(props.filter((p) => !this.isForeground(p)), camera);
+      this.drawGuides(template, camera);
+      this.drawTargets(template, camera);
+      this.drawProjectiles(projectiles, camera);
+      this.drawProps(props.filter((p) => this.isForeground(p)), camera);
+    } else {
+      // 画像ステージ: 背景画像の上に的スプライトと弾。
+      this.drawTargets(template, camera);
+      this.drawProjectiles(projectiles, camera);
+    }
+
     this.drawScoreTexts(feedback);
     this.drawMarkers(feedback);
     this.drawAimGuide(cursor);
@@ -64,25 +72,26 @@ export class Renderer {
     return p.kind === 'fence' && p.foreground;
   }
 
-  private drawBackground(): void {
-    const { ctx, canvas } = this;
+  private drawBackground(useImage: boolean): void {
+    const { ctx, canvas, assets } = this;
+    if (useImage && assets.backgroundReady) {
+      // cover フィット (アスペクトを保ち画面を埋める)。
+      const img = assets.background;
+      const scale = Math.max(
+        canvas.width / img.width,
+        canvas.height / img.height,
+      );
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+      return;
+    }
     const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
     g.addColorStop(0, '#0b1733');
     g.addColorStop(0.55, '#10243f');
     g.addColorStop(1, '#06101f');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-
-  private drawVideoMirrored(): void {
-    const { ctx, canvas, video } = this;
-    if (video.readyState < 2) return;
-    ctx.save();
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.globalAlpha = 0.3;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
   }
 
   private drawFloorGrid(camera: Camera): void {
@@ -252,7 +261,16 @@ export class Renderer {
       const p = camera.project(t.position);
       if (!p.visible) continue;
 
-      // スタンド: 床から的への縦線 (距離の手掛かり)。
+      const r = t.radius * p.scale;
+      const isHit = t.state === TargetState.Hit;
+
+      // スプライト的 (画像) があれば優先して描く。
+      if (t.iconIndex !== null && this.assets.targetsReady) {
+        this.drawSprite(t.iconIndex, p.x, p.y, r, isHit);
+        continue;
+      }
+
+      // スタンド: 床から的への縦線 (3D描画ステージのみ)。
       ctx.save();
       ctx.strokeStyle = ArenaConfig.standColor;
       ctx.lineWidth = 1;
@@ -263,8 +281,6 @@ export class Renderer {
       );
       ctx.restore();
 
-      const r = t.radius * p.scale;
-      const isHit = t.state === TargetState.Hit;
       const baseColor = TargetConfig.colors[t.type];
 
       ctx.save();
@@ -293,6 +309,38 @@ export class Renderer {
         ctx.restore();
       }
     }
+  }
+
+  /** 的スプライトシートの1セルを円形に切り抜いて描く。 */
+  private drawSprite(
+    icon: number,
+    cx: number,
+    cy: number,
+    r: number,
+    isHit: boolean,
+  ): void {
+    const { ctx, assets } = this;
+    const img = assets.targets;
+    const cw = img.width / AssetConfig.sheetCols;
+    const ch = img.height / AssetConfig.sheetRows;
+    const col = icon % AssetConfig.sheetCols;
+    const row = Math.floor(icon / AssetConfig.sheetCols);
+    ctx.save();
+    if (isHit) ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(img, col * cw, row * ch, cw, ch, cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
+    // ふち
+    ctx.save();
+    ctx.strokeStyle = isHit ? '#ffffff' : 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = Math.max(2, r * 0.06);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawProjectiles(
