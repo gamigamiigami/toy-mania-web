@@ -1,6 +1,7 @@
 import type { GameBus } from '../../core/EventBus';
 import type { TemplateName } from '../../core/types';
 import type { StageTemplate } from '../StageTemplate';
+import { HamAndEggs } from './HamAndEggs';
 import { HorizontalSliders } from './HorizontalSliders';
 import { PopupMatrix } from './PopupMatrix';
 import { SequentialChains } from './SequentialChains';
@@ -15,6 +16,8 @@ export function createTemplate(
       return new PopupMatrix(bus);
     case 'chains':
       return new SequentialChains(bus);
+    case 'hameggs':
+      return new HamAndEggs(bus);
     case 'sliders':
     default:
       return new HorizontalSliders();
@@ -23,6 +26,7 @@ export function createTemplate(
 
 /** UI 表示用のテンプレート一覧。 */
 export const TEMPLATE_LIST: { name: TemplateName; label: string }[] = [
+  { name: 'hameggs', label: 'Ham & Eggs' },
   { name: 'sliders', label: 'Sliders' },
   { name: 'matrix', label: 'Pop-up' },
   { name: 'chains', label: 'Chains' },

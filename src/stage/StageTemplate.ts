@@ -1,5 +1,6 @@
 import type { Vec3 } from '../core/types';
 import type { Target } from '../target/Target';
+import type { SceneProp } from './Scene';
 
 /** 描画ガイド (レーン線・穴マーカーなど) の線分。 */
 export interface GuideSegment {
@@ -26,4 +27,6 @@ export interface StageTemplate {
   onHit(target: Target): number;
   /** 描画用の誘導ガイド線。 */
   getGuides(): GuideSegment[];
+  /** 背景・建物などのシーン装飾 (任意)。 */
+  getProps?(): SceneProp[];
 }
