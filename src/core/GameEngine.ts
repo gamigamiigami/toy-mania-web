@@ -163,6 +163,19 @@ export class GameEngine {
     this.onRoundStart();
   }
 
+  /** 指定ステージへ即切り替えて開始 (テストプレイ用)。 */
+  selectStage(index: number): void {
+    const len = STAGE_INFO.length;
+    this.stageIndex = ((index % len) + len) % len;
+    this.templateName = STAGE_INFO[this.stageIndex].name as TemplateName;
+    this.onStage(STAGE_INFO[this.stageIndex].label);
+    this.startMatch();
+  }
+
+  getStageIndex(): number {
+    return this.stageIndex;
+  }
+
   private enterWaiting(): void {
     this.phase = 'waiting';
     // 次のステージへローテーション。

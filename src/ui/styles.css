@@ -185,6 +185,18 @@ body {
   color: #9aa3ad;
 }
 
+.stage-switch {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 96%;
+}
+
 .template-bar {
   position: absolute;
   top: 16px;

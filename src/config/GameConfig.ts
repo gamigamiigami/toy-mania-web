@@ -104,14 +104,16 @@ export const StagesConfig = {
     midLife: 1.6,
     midRespawn: 0.7,
     midScore: ScoreTier.mid,
-    far: { cx: 0, cy: 1.6, z: 13, radius: 2.4, count: 2, speed: 1.2, score: ScoreTier.high, tr: 0.5 },
+    // 奥オービットは X-Z 平面(水平カルーセル)で手前↔奥に動く。
+    far: { cx: 0, cy: 1.4, z: 11, radius: 3.0, count: 2, speed: 1.0, score: ScoreTier.high, tr: 0.5 },
   },
 
-  /** 回転オービット塔: 2つのリングが3D周回。 */
+  /** 回転オービット塔: 中央の柱の周りを水平カルーセルで周回(手前↔奥)。柱の裏は隠れる。 */
   orbit: {
+    pillar: { x: 0, y: 0.4, z: 10, radius: 1.4 },
     rings: [
-      { z: 8, r: 2.6, count: 3, speed: 1.0, score: ScoreTier.mid, tr: 0.6, cy: 0.6 },
-      { z: 13, r: 3.4, count: 4, speed: 1.6, score: ScoreTier.high, tr: 0.42, cy: 1.4 },
+      { z: 10, r: 3.6, count: 5, speed: 0.9, score: ScoreTier.mid, tr: 0.6, cy: 0.3 },
+      { z: 10, r: 2.4, count: 4, speed: 1.4, score: ScoreTier.high, tr: 0.42, cy: 1.6 },
     ],
   },
 

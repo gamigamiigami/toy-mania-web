@@ -1,4 +1,5 @@
 import { StagesConfig } from '../../config/GameConfig';
+import type { Obstacle } from '../../core/types';
 import { Target } from '../../target/Target';
 import type { GuideSegment, StageTemplate } from '../StageTemplate';
 import { randIcon, tierType } from './util';
@@ -7,13 +8,13 @@ const O = StagesConfig.orbit;
 
 /**
  * OrbitTower (回転オービット塔)
- * 複数のリング上を的が3D周回。奥のリングほど小さく高得点。先読み+ロブ。
+ * 中央の柱の周りを水平カルーセルで周回。的は手前↔奥に動き、柱の裏に回ると隠れて
+ * 当てられない(柱が弾も遮る)。前に来た一瞬を狙う＝奥行きと先読みのゲーム。
  */
 export class OrbitTower implements StageTemplate {
   readonly displayName = '回転オービット塔';
   readonly backgroundKey = 'farm';
 
-  /** ring index ごとの的配列。 */
   private rings: Target[][] = [];
 
   constructor() {
@@ -44,10 +45,11 @@ export class OrbitTower implements StageTemplate {
       for (const t of arr) {
         t.update(dt);
         t.phase += ring.speed * dt;
+        // 水平カルーセル: x と z(奥行き) が回る。
         t.position.x = Math.cos(t.phase) * ring.r;
-        t.position.y = ring.cy + Math.sin(t.phase) * (ring.r * 0.45);
+        t.position.z = ring.z + Math.sin(t.phase) * ring.r;
+        t.position.y = ring.cy;
       }
-      // 破壊→反対側から復帰。
       for (let i = arr.length - 1; i >= 0; i--) {
         if (arr[i].isDestroyed()) {
           const ang = arr[i].phase + Math.PI;
@@ -65,4 +67,7 @@ export class OrbitTower implements StageTemplate {
   }
   onHit(t: Target): number { return t.scoreValue; }
   getGuides(): GuideSegment[] { return []; }
+  getObstacles(): Obstacle[] {
+    return [{ ...O.pillar }];
+  }
 }

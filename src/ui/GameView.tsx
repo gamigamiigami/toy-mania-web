@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { PlayerConfig } from '../config/GameConfig';
+import { PlayerConfig, STAGE_INFO } from '../config/GameConfig';
 import { GameEngine } from '../core/GameEngine';
 import { RemoteHost } from '../net/RemoteHost';
 
@@ -117,6 +117,17 @@ export function GameView() {
   };
 
   const startMatch = () => engineRef.current?.startMatch();
+  const selectStage = (i: number) => engineRef.current?.selectStage(i);
+
+  // テストプレイ用: 数字キー 1-4 でステージ即切替。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const n = Number(e.key);
+      if (n >= 1 && n <= STAGE_INFO.length) selectStage(n - 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const ids = PlayerConfig.names.map((_, i) => i);
 
@@ -155,6 +166,19 @@ export function GameView() {
               </div>
               <span className="timer">{timeLeft}</span>
               {stageLabel && <span className="stage-chip">{stageLabel}</span>}
+            </div>
+
+            {/* テストプレイ用: ステージ即切替 (数字キー1-4でも可) */}
+            <div className="stage-switch">
+              {STAGE_INFO.map((s, i) => (
+                <button
+                  key={s.name}
+                  className={s.label === stageLabel ? 'tpl active' : 'tpl'}
+                  onClick={() => selectStage(i)}
+                >
+                  {i + 1}. {s.label}
+                </button>
+              ))}
             </div>
 
             {matchPhase === 'waiting' && (

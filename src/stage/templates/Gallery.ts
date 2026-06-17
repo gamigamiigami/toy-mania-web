@@ -82,12 +82,13 @@ export class Gallery implements StageTemplate {
       }
     }
 
-    // 奥オービット
+    // 奥カルーセル (X-Z 平面: 手前↔奥に動く)
     for (const t of this.far) {
       t.update(dt);
       t.phase += G.far.speed * dt;
       t.position.x = G.far.cx + Math.cos(t.phase) * G.far.radius;
-      t.position.y = G.far.cy + Math.sin(t.phase) * (G.far.radius * 0.4);
+      t.position.z = G.far.z + Math.sin(t.phase) * G.far.radius;
+      t.position.y = G.far.cy;
     }
     this.far = this.collect(this.far, this.farPending, G.midRespawn);
     this.spawnPending(this.farPending, dt, () =>
