@@ -68,8 +68,16 @@ export const WeaponConfig = {
 } as const;
 
 export const ControllerConfig = {
-  /** スマホ・ジャイロの感度 (1度あたりの正規化移動量)。大きいほど少しの傾きで端へ。 */
-  sensitivity: 0.03,
+  /**
+   * スマホ・ジャイロ感度 (1度あたりの正規化移動量)。
+   * 左右=ヨー(alpha:スマホを左右に振る向き)、上下=ピッチ(beta:上下に振る)。
+   * = レーザーポインターのように「スクリーンに向けて振る」操作。
+   */
+  sensX: 0.03,
+  sensY: 0.03,
+  /** 向きの符号 (鏡像/上下が逆なら反転)。 */
+  signX: -1,
+  signY: 1,
 } as const;
 
 /**

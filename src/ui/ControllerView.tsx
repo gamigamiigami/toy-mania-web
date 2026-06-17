@@ -14,7 +14,7 @@ function clamp01(v: number): number {
  */
 export function ControllerView({ room }: { room: string }) {
   const ctrlRef = useRef<RemoteController | null>(null);
-  const neutral = useRef<{ b: number; g: number } | null>(null);
+  const neutral = useRef<{ a: number; b: number } | null>(null);
   const [status, setStatus] = useState<Status>('connecting');
   const [active, setActive] = useState(false);
 
@@ -29,11 +29,15 @@ export function ControllerView({ room }: { room: string }) {
   useEffect(() => {
     if (!active) return;
     const onOrient = (e: DeviceOrientationEvent) => {
-      if (e.beta == null || e.gamma == null) return;
-      if (!neutral.current) neutral.current = { b: e.beta, g: e.gamma };
-      const s = ControllerConfig.sensitivity;
-      const x = clamp01(0.5 + (e.gamma - neutral.current.g) * s);
-      const y = clamp01(0.5 + (e.beta - neutral.current.b) * s);
+      if (e.alpha == null || e.beta == null) return;
+      if (!neutral.current) neutral.current = { a: e.alpha, b: e.beta };
+      // 左右 = ヨー(alpha:左右に振る)。360度ラップを [-180,180] に補正。
+      let da = e.alpha - neutral.current.a;
+      da = ((da + 540) % 360) - 180;
+      // 上下 = ピッチ(beta:上下に振る)。
+      const db = e.beta - neutral.current.b;
+      const x = clamp01(0.5 + da * ControllerConfig.sensX * ControllerConfig.signX);
+      const y = clamp01(0.5 + db * ControllerConfig.sensY * ControllerConfig.signY);
       ctrlRef.current?.sendAim(x, y);
     };
     window.addEventListener('deviceorientation', onOrient);
