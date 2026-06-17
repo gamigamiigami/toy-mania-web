@@ -14,4 +14,14 @@ export type SceneProp =
   | { kind: 'fence'; base: Vec3; width: number; height: number; foreground: boolean }
   | { kind: 'cactus'; base: Vec3; width: number; height: number }
   | { kind: 'pond'; base: Vec3; width: number; height: number }
-  | { kind: 'windmill'; base: Vec3; width: number; height: number; angle: number };
+  | { kind: 'windmill'; base: Vec3; width: number; height: number; angle: number }
+  | {
+      /** ひな壇の1段 (上面 y, 奥行き zNear..zFar, 横幅 ±halfWidth, 前面の下端 yBottom)。 */
+      kind: 'platform';
+      base: Vec3;
+      zFar: number;
+      halfWidth: number;
+      yBottom: number;
+      color: string;
+      edge: string;
+    };

@@ -51,7 +51,7 @@ export enum TargetType {
 }
 
 /** ステージテンプレート種別。 */
-export type TemplateName = 'gallery' | 'orbit' | 'curve' | 'mole';
+export type TemplateName = 'tiers' | 'gallery' | 'orbit' | 'curve' | 'mole';
 
 /** 弾を遮る障害物 (球)。カーブで避けて当てる用。 */
 export interface Obstacle {

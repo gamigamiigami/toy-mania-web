@@ -46,16 +46,14 @@ export class Renderer {
     const useImageBg = !!template.backgroundKey;
     this.drawBackground(useImageBg);
 
-    if (!useImageBg) {
-      const props = template.getProps?.() ?? [];
-      this.drawFloorGrid(camera);
-      this.drawProps(props.filter((p) => !this.isForeground(p)), camera);
-      this.drawGuides(template, camera);
-      this.drawWorld(template, projectiles, camera);
-      this.drawProps(props.filter((p) => this.isForeground(p)), camera);
-    } else {
-      this.drawWorld(template, projectiles, camera);
-    }
+    const props = template.getProps?.() ?? [];
+    if (!useImageBg) this.drawFloorGrid(camera);
+    // 背景プロップ(ひな壇/丘など)を奥から描く。
+    this.drawProps(props.filter((p) => !this.isForeground(p)), camera);
+    if (!useImageBg) this.drawGuides(template, camera);
+    this.drawWorld(template, projectiles, camera);
+    // 手前の遮蔽物(柵)は的より前に。
+    this.drawProps(props.filter((p) => this.isForeground(p)), camera);
 
     this.drawDebris(feedback);
     this.drawScoreTexts(feedback);
@@ -164,17 +162,51 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** シーン装飾(背景/建物)をビルボードとして描く。 */
+  /** シーン装飾(背景/建物/ひな壇)を描く。platformは3D面、その他はビルボード。 */
   private drawProps(props: SceneProp[], camera: Camera): void {
     const sorted = [...props].sort((a, b) => b.base.z - a.base.z);
     for (const p of sorted) {
+      if (p.kind === 'platform') {
+        this.drawPlatform(p, camera);
+        continue;
+      }
       const b = camera.project(p.base);
       if (!b.visible) continue;
       const s = b.scale;
-      const w = p.width * s;
-      const h = p.height * s;
-      this.drawProp(p, b.x, b.y, w, h);
+      this.drawProp(p, b.x, b.y, p.width * s, p.height * s);
     }
+  }
+
+  /** ひな壇の1段を3Dの板(上面+前面)として描く。 */
+  private drawPlatform(
+    p: Extract<SceneProp, { kind: 'platform' }>,
+    camera: Camera,
+  ): void {
+    const { y, z } = p.base;
+    const hw = p.halfWidth;
+    // 前面(立ち上がり)
+    this.fillQuad3D(
+      camera,
+      [
+        { x: -hw, y, z },
+        { x: hw, y, z },
+        { x: hw, y: p.yBottom, z },
+        { x: -hw, y: p.yBottom, z },
+      ],
+      'rgba(60,70,55,0.85)',
+    );
+    // 上面
+    this.fillQuad3D(
+      camera,
+      [
+        { x: -hw, y, z: p.zFar },
+        { x: hw, y, z: p.zFar },
+        { x: hw, y, z },
+        { x: -hw, y, z },
+      ],
+      p.color,
+      p.edge,
+    );
   }
 
   private drawProp(
@@ -524,5 +556,30 @@ export class Renderer {
     ctx.moveTo(pa.x, pa.y);
     ctx.lineTo(pb.x, pb.y);
     ctx.stroke();
+  }
+
+  /** 3Dの4頂点ポリゴンを投影して塗る。全頂点が前方のときのみ。 */
+  private fillQuad3D(
+    camera: Camera,
+    corners: Vec3[],
+    fill: string,
+    edge?: string,
+  ): void {
+    const { ctx } = this;
+    const pts = corners.map((c) => camera.project(c));
+    if (pts.some((p) => !p.visible)) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (edge) {
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }

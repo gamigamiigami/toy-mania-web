@@ -147,10 +147,26 @@ export const StagesConfig = {
     active: 5,
     tr: 0.7,
   },
+
+  /**
+   * ひな壇シューティング: 手前から奥へ段が上がる。各段に的が乗り左右スライド。
+   * 奥の段ほど高く・小さく・高得点。段の前後でオクルージョン＝奥行きが明確。
+   */
+  tiers: {
+    floorY: -2.2,
+    steps: [
+      { y: -1.4, zNear: 5, zFar: 6.6, halfWidth: 5.0, count: 3, speed: 2.4, tr: 0.7, score: ScoreTier.low },
+      { y: -0.3, zNear: 7.2, zFar: 8.8, halfWidth: 4.6, count: 3, speed: 3.0, tr: 0.6, score: ScoreTier.mid },
+      { y: 0.9, zNear: 9.6, zFar: 11.2, halfWidth: 4.2, count: 2, speed: 3.6, tr: 0.5, score: ScoreTier.high },
+      { y: 2.2, zNear: 12.2, zFar: 13.8, halfWidth: 3.6, count: 1, speed: 4.2, tr: 0.45, score: ScoreTier.top },
+    ],
+    respawn: 0.6,
+  },
 } as const;
 
 /** ステージ表示名 と ローテーション順。 */
 export const STAGE_INFO: { name: string; label: string }[] = [
+  { name: 'tiers', label: 'ひな壇' },
   { name: 'gallery', label: '3層ギャラリー' },
   { name: 'orbit', label: '回転オービット塔' },
   { name: 'curve', label: 'カーブ迫りコース' },
