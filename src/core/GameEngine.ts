@@ -1,4 +1,4 @@
-import { CameraConfig, TemplatesConfig } from '../config/GameConfig';
+import { CameraConfig, TargetConfig, TemplatesConfig } from '../config/GameConfig';
 import { Assets } from './Assets';
 import { Camera } from './Camera';
 import { EventBus, type GameBus } from './EventBus';
@@ -68,7 +68,11 @@ export class GameEngine {
     // --- Event 配線 ---
     this.bus.on('hit', ({ score, point }) => {
       const p = this.camera.project(point);
-      if (p.visible) this.feedback.addHit({ x: p.x, y: p.y }, score);
+      if (p.visible) {
+        this.feedback.addHit({ x: p.x, y: p.y }, score);
+        // 割れる演出 (破片)。的のおおよその画面半径ぶん。
+        this.feedback.addBreak({ x: p.x, y: p.y }, TargetConfig.radius * p.scale);
+      }
     });
     this.bus.on('scoreChanged', ({ total }) => this.onScoreChange(total));
     this.bus.on('status', ({ text }) => this.onStatusChange(text));

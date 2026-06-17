@@ -256,6 +256,12 @@ export const FeedbackConfig = {
   scoreColorBig: '#ffd60a',
   /** この得点以上は大きく強調表示。 */
   bigScoreThreshold: 300,
+  /** 命中で割れる破片の数・寿命・初速・落下・色。 */
+  debrisCount: 12,
+  debrisLifeSec: 0.4,
+  debrisSpeed: 420,
+  debrisGravity: 900,
+  debrisColors: ['#d33a2c', '#f2e6c2', '#ffffff', '#ffd60a'],
 } as const;
 
 /** 画像アセット (背景・的スプライトシート)。public/scene/ に配置。 */

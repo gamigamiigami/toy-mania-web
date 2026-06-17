@@ -52,20 +52,41 @@ export class Renderer {
       this.drawFloorGrid(camera);
       this.drawProps(props.filter((p) => !this.isForeground(p)), camera);
       this.drawGuides(template, camera);
-      this.drawTargets(template, camera);
-      this.drawProjectiles(projectiles, camera);
+      this.drawWorld(template, projectiles, camera);
       this.drawProps(props.filter((p) => this.isForeground(p)), camera);
     } else {
-      // 画像ステージ: 背景画像の上に的スプライトと弾。
-      this.drawTargets(template, camera);
-      this.drawProjectiles(projectiles, camera);
+      // 画像ステージ: 背景画像の上に的スプライトと弾(奥行き順)。
+      this.drawWorld(template, projectiles, camera);
     }
 
+    this.drawDebris(feedback);
     this.drawScoreTexts(feedback);
     this.drawMarkers(feedback);
     this.drawAimGuide(cursor);
     this.drawCursor(cursor);
     this.drawCombo(combo);
+  }
+
+  /**
+   * 的と弾を奥行き(z)順に描く。奥のものから描くので、的より奥に行った球は
+   * 的に隠れて見えなくなる(オクルージョン)→「上を狙うと的の奥に落ちる」が分かる。
+   */
+  private drawWorld(
+    template: StageTemplate,
+    projectiles: ProjectileSystem,
+    camera: Camera,
+  ): void {
+    type Item =
+      | { z: number; kind: 't'; t: ReturnType<StageTemplate['getTargets']>[number] }
+      | { z: number; kind: 'p'; p: ReturnType<ProjectileSystem['getProjectiles']>[number] };
+    const items: Item[] = [];
+    for (const t of template.getTargets()) items.push({ z: t.position.z, kind: 't', t });
+    for (const p of projectiles.getProjectiles()) items.push({ z: p.position.z, kind: 'p', p });
+    items.sort((a, b) => b.z - a.z); // 奥(z大)から手前(z小)へ
+    for (const it of items) {
+      if (it.kind === 't') this.drawTargetOne(it.t, camera);
+      else this.drawProjectileOne(it.p, camera);
+    }
   }
 
   private isForeground(p: SceneProp): boolean {
@@ -252,62 +273,59 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawTargets(template: StageTemplate, camera: Camera): void {
+  private drawTargetOne(
+    t: ReturnType<StageTemplate['getTargets']>[number],
+    camera: Camera,
+  ): void {
     const { ctx } = this;
-    const sorted = [...template.getTargets()].sort(
-      (a, b) => b.position.z - a.position.z,
+    const p = camera.project(t.position);
+    if (!p.visible) return;
+
+    const r = t.radius * p.scale;
+    const isHit = t.state === TargetState.Hit;
+    // 命中の瞬間は割れる演出のため少し拡大して描く。
+    const drawR = isHit ? r * 1.25 : r;
+
+    // スプライト的 (画像) があれば優先して描く。不透明で奥の球を隠す。
+    if (t.iconIndex !== null && this.assets.targetsReady) {
+      this.drawSprite(t.iconIndex, p.x, p.y, drawR, isHit);
+      return;
+    }
+
+    // スタンド: 床から的への縦線 (3D描画ステージのみ)。
+    ctx.save();
+    ctx.strokeStyle = ArenaConfig.standColor;
+    ctx.lineWidth = 1;
+    this.strokeLine3D(
+      camera,
+      { x: t.position.x, y: WorldConfig.floorY, z: t.position.z },
+      { x: t.position.x, y: t.position.y, z: t.position.z },
     );
-    for (const t of sorted) {
-      const p = camera.project(t.position);
-      if (!p.visible) continue;
+    ctx.restore();
 
-      const r = t.radius * p.scale;
-      const isHit = t.state === TargetState.Hit;
+    const baseColor = TargetConfig.colors[t.type];
+    ctx.save();
+    if (t.type === TargetType.HighValue || t.type === TargetType.Bonus) {
+      ctx.shadowColor = baseColor;
+      ctx.shadowBlur = 20;
+    }
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, drawR, 0, Math.PI * 2);
+    ctx.fillStyle = isHit ? '#ffffff' : baseColor;
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, r * 0.08);
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.stroke();
+    ctx.restore();
 
-      // スプライト的 (画像) があれば優先して描く。
-      if (t.iconIndex !== null && this.assets.targetsReady) {
-        this.drawSprite(t.iconIndex, p.x, p.y, r, isHit);
-        continue;
-      }
-
-      // スタンド: 床から的への縦線 (3D描画ステージのみ)。
+    if (t.label) {
       ctx.save();
-      ctx.strokeStyle = ArenaConfig.standColor;
-      ctx.lineWidth = 1;
-      this.strokeLine3D(
-        camera,
-        { x: t.position.x, y: WorldConfig.floorY, z: t.position.z },
-        { x: t.position.x, y: t.position.y, z: t.position.z },
-      );
+      ctx.fillStyle = '#001018';
+      ctx.font = `bold ${Math.max(12, r)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(t.label, p.x, p.y);
       ctx.restore();
-
-      const baseColor = TargetConfig.colors[t.type];
-
-      ctx.save();
-      // HighValue / Bonus は発光させて視線を誘導。
-      if (t.type === TargetType.HighValue || t.type === TargetType.Bonus) {
-        ctx.shadowColor = baseColor;
-        ctx.shadowBlur = 20;
-      }
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = isHit ? '#ffffff' : baseColor;
-      ctx.fill();
-      ctx.lineWidth = Math.max(2, r * 0.08);
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.stroke();
-      ctx.restore();
-
-      // ラベル (連鎖番号)。
-      if (t.label) {
-        ctx.save();
-        ctx.fillStyle = '#001018';
-        ctx.font = `bold ${Math.max(12, r)}px system-ui, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t.label, p.x, p.y);
-        ctx.restore();
-      }
     }
   }
 
@@ -348,41 +366,50 @@ export class Renderer {
     }
   }
 
-  private drawProjectiles(
-    projectiles: ProjectileSystem,
+  private drawProjectileOne(
+    proj: ReturnType<ProjectileSystem['getProjectiles']>[number],
     camera: Camera,
   ): void {
     const { ctx } = this;
-    const sorted = [...projectiles.getProjectiles()].sort(
-      (a, b) => b.position.z - a.position.z,
-    );
-    for (const proj of sorted) {
-      const pts = proj.trail;
-      for (let i = 1; i < pts.length; i++) {
-        const a = camera.project(pts[i - 1].pos);
-        const b = camera.project(pts[i].pos);
-        if (!a.visible || !b.visible) continue;
-        const ratio = i / pts.length;
-        ctx.save();
-        ctx.globalAlpha = ratio * 0.7;
-        ctx.strokeStyle = WorldConfig.ballColor;
-        ctx.lineWidth = Math.max(1, proj.radius * b.scale * ratio);
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-        ctx.restore();
-      }
-      const c = camera.project(proj.position);
-      if (!c.visible) continue;
-      const r = Math.max(1.5, proj.radius * c.scale);
+    const pts = proj.trail;
+    for (let i = 1; i < pts.length; i++) {
+      const a = camera.project(pts[i - 1].pos);
+      const b = camera.project(pts[i].pos);
+      if (!a.visible || !b.visible) continue;
+      const ratio = i / pts.length;
       ctx.save();
-      ctx.fillStyle = WorldConfig.ballColor;
-      ctx.shadowColor = WorldConfig.ballColor;
-      ctx.shadowBlur = 12;
+      ctx.globalAlpha = ratio * 0.7;
+      ctx.strokeStyle = WorldConfig.ballColor;
+      ctx.lineWidth = Math.max(1, proj.radius * b.scale * ratio);
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    const c = camera.project(proj.position);
+    if (!c.visible) return;
+    const r = Math.max(1.5, proj.radius * c.scale);
+    ctx.save();
+    ctx.fillStyle = WorldConfig.ballColor;
+    ctx.shadowColor = WorldConfig.ballColor;
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawDebris(feedback: FeedbackManager): void {
+    const { ctx } = this;
+    for (const d of feedback.getDebris()) {
+      const alpha = Math.max(0, d.life / d.maxLife);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = d.color;
+      ctx.beginPath();
+      ctx.arc(d.position.x, d.position.y, d.size, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
