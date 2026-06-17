@@ -1,5 +1,10 @@
 import { Peer, type DataConnection } from 'peerjs';
-import { peerIdForRoom, type AimMessage, type FireMessage } from './messages';
+import {
+  peerIdForRoom,
+  type AimMessage,
+  type FireMessage,
+  type HostMessage,
+} from './messages';
 
 /**
  * RemoteController
@@ -10,6 +15,8 @@ export class RemoteController {
   private conn: DataConnection | null = null;
   onOpen: () => void = () => {};
   onClosed: () => void = () => {};
+  /** ホストからのプレイヤー割当 (色/番号)。 */
+  onAssign: (player: number, color: string, name: string) => void = () => {};
 
   constructor(private readonly code: string) {
     this.peer = new Peer();
@@ -19,6 +26,12 @@ export class RemoteController {
       });
       this.conn.on('open', () => this.onOpen());
       this.conn.on('close', () => this.onClosed());
+      this.conn.on('data', (data) => {
+        const msg = data as HostMessage;
+        if (msg && msg.t === 'assign') {
+          this.onAssign(msg.player, msg.color, msg.name);
+        }
+      });
     });
   }
 

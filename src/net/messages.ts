@@ -14,6 +14,16 @@ export interface FireMessage {
 
 export type ControllerMessage = AimMessage | FireMessage;
 
+/** 画面(ホスト) → スマホ へ: プレイヤー割当(色/番号)。 */
+export interface AssignMessage {
+  t: 'assign';
+  player: number;
+  color: string;
+  name: string;
+}
+
+export type HostMessage = AssignMessage;
+
 /** ルームコードからPeerJSのIDを作る (公開ブローカ上の衝突を避けるため接頭辞)。 */
 export function peerIdForRoom(code: string): string {
   return `toymania-v1-${code}`;

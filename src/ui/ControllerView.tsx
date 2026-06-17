@@ -30,12 +30,14 @@ export function ControllerView({ room }: { room: string }) {
   const [active, setActive] = useState(false);
   const [shots, setShots] = useState(0);
   const [drag, setDrag] = useState<Drag | null>(null);
+  const [me, setMe] = useState<{ name: string; color: string } | null>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const c = new RemoteController(room);
     c.onOpen = () => setStatus('ready');
     c.onClosed = () => setStatus('closed');
+    c.onAssign = (_p, color, name) => setMe({ name, color });
     ctrlRef.current = c;
     return () => c.dispose();
   }, [room]);
@@ -121,11 +123,17 @@ export function ControllerView({ room }: { room: string }) {
     <div className="controller">
       <div className="ctrl-head">
         <h1>🎪 まとあて</h1>
-        <p className="conn">
-          {status === 'connecting' && '接続中…'}
-          {status === 'ready' && `接続OK ・ ルーム ${room}`}
-          {status === 'closed' && '切断されました'}
-        </p>
+        {me ? (
+          <p className="conn" style={{ color: me.color }}>
+            あなたは <b>{me.name}</b>（{status === 'closed' ? '切断' : '接続中'}）
+          </p>
+        ) : (
+          <p className="conn">
+            {status === 'connecting' && '接続中…'}
+            {status === 'ready' && `接続OK ・ ルーム ${room}`}
+            {status === 'closed' && '切断されました'}
+          </p>
+        )}
       </div>
 
       {!active ? (
@@ -169,7 +177,16 @@ export function ControllerView({ room }: { room: string }) {
                 />
               )}
             </svg>
-            <div className="ball" />
+            <div
+              className="ball"
+              style={
+                me
+                  ? {
+                      background: `radial-gradient(circle at 35% 28%, #fff 0%, ${me.color} 55%, ${me.color} 100%)`,
+                    }
+                  : undefined
+              }
+            />
             <span className="swipe-label">⬆ スワイプで発射</span>
           </div>
           <div className="ctrl-actions">

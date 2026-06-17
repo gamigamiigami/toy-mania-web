@@ -7,6 +7,8 @@ import { Projectile } from './Projectile';
 export interface ProjectileHit {
   target: Target;
   point: Vec3;
+  /** 当てたプレイヤー。 */
+  playerId: number;
 }
 
 /**
@@ -20,7 +22,12 @@ export class ProjectileSystem {
    * 照準レイ方向へボールを1発投げる。
    * @param rayDir カメラから奥へ伸びる単位方向ベクトル (Camera.screenToRay)
    */
-  launch(rayDir: Vec3, curveRatio = 0): void {
+  launch(
+    rayDir: Vec3,
+    curveRatio = 0,
+    playerId = 0,
+    color: string = WorldConfig.ballColor,
+  ): void {
     const v = WorldConfig.throwSpeed;
     const velocity: Vec3 = {
       x: rayDir.x * v,
@@ -29,7 +36,7 @@ export class ProjectileSystem {
     };
     const curve = curveRatio * WorldConfig.curveAccel;
     this.projectiles.push(
-      new Projectile({ ...WorldConfig.muzzle }, velocity, curve),
+      new Projectile({ ...WorldConfig.muzzle }, velocity, curve, playerId, color),
     );
   }
 
@@ -48,7 +55,7 @@ export class ProjectileSystem {
         const dy = p.position.y - t.position.y;
         const dz = p.position.z - t.position.z;
         if (dx * dx + dy * dy + dz * dz <= reach * reach && t.hit()) {
-          hits.push({ target: t, point: { ...p.position } });
+          hits.push({ target: t, point: { ...p.position }, playerId: p.playerId });
           p.kill();
           break;
         }

@@ -67,12 +67,21 @@ export const WeaponConfig = {
   fireIntervalSec: 0.5,
 } as const;
 
+export const RoundConfig = {
+  /** 1ステージの制限時間 (秒)。経過で次ステージ(今は同ステージ)へ。 */
+  durationSec: 30,
+  /** リザルト表示時間 (秒)。 */
+  resultSec: 5,
+} as const;
+
+export const PlayerConfig = {
+  /** プレイヤー色 (P1 / P2)。どっちがどっちか区別。 */
+  colors: ['#00e5ff', '#ff3bd0'] as const,
+  names: ['P1', 'P2'] as const,
+  maxPlayers: 2,
+} as const;
+
 export const ControllerConfig = {
-  /**
-   * スマホ・ジャイロ感度 (1度あたりの正規化移動量)。
-   * 左右=ヨー(alpha:スマホを左右に振る向き)、上下=ピッチ(beta:上下に振る)。
-   * = レーザーポインターのように「スクリーンに向けて振る」操作。
-   */
   sensX: 0.03,
   sensY: 0.03,
   /** 向きの符号 (鏡像/上下が逆なら反転)。 */

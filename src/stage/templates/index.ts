@@ -1,37 +1,8 @@
-import type { GameBus } from '../../core/EventBus';
 import type { TemplateName } from '../../core/types';
 import type { StageTemplate } from '../StageTemplate';
-import { HamAndEggs } from './HamAndEggs';
-import { HorizontalSliders } from './HorizontalSliders';
 import { PhotoFarm } from './PhotoFarm';
-import { PopupMatrix } from './PopupMatrix';
-import { SequentialChains } from './SequentialChains';
 
 /** テンプレート名から実体を生成するファクトリ (拡張点)。 */
-export function createTemplate(
-  name: TemplateName,
-  bus: GameBus,
-): StageTemplate {
-  switch (name) {
-    case 'matrix':
-      return new PopupMatrix(bus);
-    case 'chains':
-      return new SequentialChains(bus);
-    case 'hameggs':
-      return new HamAndEggs(bus);
-    case 'sliders':
-      return new HorizontalSliders();
-    case 'photo':
-    default:
-      return new PhotoFarm();
-  }
+export function createTemplate(_name: TemplateName): StageTemplate {
+  return new PhotoFarm();
 }
-
-/** UI 表示用のテンプレート一覧。 */
-export const TEMPLATE_LIST: { name: TemplateName; label: string }[] = [
-  { name: 'photo', label: 'Farm' },
-  { name: 'hameggs', label: 'Ham & Eggs' },
-  { name: 'sliders', label: 'Sliders' },
-  { name: 'matrix', label: 'Pop-up' },
-  { name: 'chains', label: 'Chains' },
-];

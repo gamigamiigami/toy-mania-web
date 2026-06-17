@@ -6,6 +6,7 @@ export interface HitMarker {
   position: Vec2;
   life: number;
   maxLife: number;
+  color: string;
 }
 
 /** フローティングスコア表示。 */
@@ -15,6 +16,7 @@ export interface ScoreText {
   maxLife: number;
   text: string;
   big: boolean;
+  color: string;
 }
 
 /** 命中で割れた破片。 */
@@ -55,12 +57,13 @@ export class FeedbackManager {
     }
   }
 
-  /** 命中フィードバック (マーカー + スコア) をまとめて追加。 */
-  addHit(position: Vec2, score: number): void {
+  /** 命中フィードバック (マーカー + スコア) をまとめて追加。color=プレイヤー色。 */
+  addHit(position: Vec2, score: number, color: string): void {
     this.markers.push({
       position: { ...position },
       life: FeedbackConfig.hitMarkerLifeSec,
       maxLife: FeedbackConfig.hitMarkerLifeSec,
+      color,
     });
     if (score > 0) {
       this.scores.push({
@@ -69,6 +72,7 @@ export class FeedbackManager {
         maxLife: FeedbackConfig.scoreTextLifeSec,
         text: `+${score}`,
         big: score >= FeedbackConfig.bigScoreThreshold,
+        color,
       });
     }
   }

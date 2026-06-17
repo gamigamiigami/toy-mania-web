@@ -21,11 +21,23 @@ export class Projectile {
   private alive = true;
   /** 横方向の加速 (カーブ。ワールド単位/秒^2)。0=直進。 */
   private readonly curve: number;
+  /** 撃ったプレイヤー。 */
+  readonly playerId: number;
+  /** 弾の色 (プレイヤー色)。 */
+  readonly color: string;
 
-  constructor(position: Vec3, velocity: Vec3, curve = 0) {
+  constructor(
+    position: Vec3,
+    velocity: Vec3,
+    curve = 0,
+    playerId = 0,
+    color: string = WorldConfig.ballColor,
+  ) {
     this.position = { ...position };
     this.velocity = { ...velocity };
     this.curve = curve;
+    this.playerId = playerId;
+    this.color = color;
   }
 
   update(dt: number): void {

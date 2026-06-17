@@ -1,16 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import { PlayerConfig } from '../config/GameConfig';
 import { GameEngine } from '../core/GameEngine';
-import type { TemplateName } from '../core/types';
 import { RemoteHost } from '../net/RemoteHost';
-import { TEMPLATE_LIST } from '../stage/templates';
 
-type Phase = 'idle' | 'loading' | 'hostwait' | 'playing' | 'error';
+type Phase = 'idle' | 'loading' | 'playing' | 'error';
 
 /**
  * GameView (画面側)
- * 責務: DOM要素の用意、操作方法の選択(カメラ/スマホ)、スマホ接続のQR表示、
- *       スコア/状況HUD、テンプレ切替。ロジックは GameEngine に委譲する。
+ * 責務: 操作方法の選択、スマホ接続(QR)、2人対戦のHUD(スコア/タイマー/リザルト)。
  */
 export function GameView() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -19,13 +17,14 @@ export function GameView() {
   const hostRef = useRef<RemoteHost | null>(null);
 
   const [phase, setPhase] = useState<Phase>('idle');
-  const [score, setScore] = useState(0);
-  const [status, setStatus] = useState('');
-  const [template, setTemplate] = useState<TemplateName>('photo');
+  const [scores, setScores] = useState<number[]>([0, 0]);
+  const [connected, setConnected] = useState<boolean[]>([false, false]);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [result, setResult] = useState<number[] | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [qr, setQr] = useState('');
   const [room, setRoom] = useState('');
-  const [ctrlUrl, setCtrlUrl] = useState('');
+  const [showJoin, setShowJoin] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -34,21 +33,34 @@ export function GameView() {
     };
   }, []);
 
-  const startEngine = async (mode: 'camera' | 'remote') => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const engine = new GameEngine(videoRef.current, canvasRef.current, mode);
-    engine.onScoreChange = setScore;
-    engine.onStatusChange = setStatus;
-    engineRef.current = engine;
-    setTemplate(engine.getTemplateName());
-    await engine.start();
-    setPhase('playing');
+  const wireEngine = (engine: GameEngine) => {
+    engine.onScoreChange = (id, s) =>
+      setScores((arr) => {
+        const next = [...arr];
+        next[id] = s;
+        return next;
+      });
+    engine.onTime = setTimeLeft;
+    engine.onRoundOver = (sc) => setResult(sc);
+    engine.onRoundStart = () => setResult(null);
+    engine.onPlayerConnected = (id) =>
+      setConnected((arr) => {
+        const next = [...arr];
+        next[id] = true;
+        return next;
+      });
   };
 
   const handleCamera = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
     setPhase('loading');
     try {
-      await startEngine('camera');
+      const engine = new GameEngine(videoRef.current, canvasRef.current, 'camera');
+      wireEngine(engine);
+      engineRef.current = engine;
+      setConnected([true, false]);
+      await engine.start();
+      setPhase('playing');
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setPhase('error');
@@ -56,33 +68,42 @@ export function GameView() {
   };
 
   const handlePhone = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
     try {
       const host = new RemoteHost();
       hostRef.current = host;
       setRoom(host.code);
-      const url = host.controllerUrl();
-      setCtrlUrl(url);
-      setQr(await QRCode.toDataURL(url, { width: 240, margin: 1 }));
-      setPhase('hostwait');
-      host.onConnected = async () => {
-        host.onAim = (x, y) => engineRef.current?.setRemoteAim(x, y);
-        host.onFire = (curve) => engineRef.current?.fire(curve);
-        try {
-          await startEngine('remote');
-        } catch (e) {
-          setErrorMsg(e instanceof Error ? e.message : String(e));
-          setPhase('error');
-        }
-      };
+      setQr(await QRCode.toDataURL(host.controllerUrl(), { width: 220, margin: 1 }));
+
+      const engine = new GameEngine(videoRef.current, canvasRef.current, 'remote');
+      wireEngine(engine);
+      engineRef.current = engine;
+
+      host.onConnected = (id) => engine.connectPlayer(id);
+      host.onAim = (id, x, y) => engine.setRemoteAim(id, x, y);
+      host.onFire = (id, curve) => engine.fire(id, curve);
+      host.onClosed = (id) =>
+        setConnected((arr) => {
+          const next = [...arr];
+          next[id] = false;
+          return next;
+        });
+
+      await engine.start();
+      setShowJoin(true);
+      setPhase('playing');
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setPhase('error');
     }
   };
 
-  const handleSwitch = (name: TemplateName) => {
-    engineRef.current?.setTemplate(name);
-    setTemplate(name);
+  const winnerText = (sc: number[]): string => {
+    const a = sc[0] ?? 0;
+    const b = sc[1] ?? 0;
+    if (!connected[1]) return `スコア ${a}`;
+    if (a === b) return '引き分け！';
+    return a > b ? `${PlayerConfig.names[0]} の勝ち！` : `${PlayerConfig.names[1]} の勝ち！`;
   };
 
   return (
@@ -93,55 +114,77 @@ export function GameView() {
 
         {phase === 'playing' && (
           <>
-            <div className="hud">
-              <span className="score">SCORE: {score}</span>
-              {status && <span className="status">{status}</span>}
+            <div className="vs-hud">
+              <span className="p p1" style={{ color: PlayerConfig.colors[0] }}>
+                {PlayerConfig.names[0]} {scores[0]}
+              </span>
+              <span className="timer">{timeLeft}</span>
+              {connected[1] ? (
+                <span className="p p2" style={{ color: PlayerConfig.colors[1] }}>
+                  {PlayerConfig.names[1]} {scores[1]}
+                </span>
+              ) : (
+                <span className="p p2 waiting">P2 …</span>
+              )}
             </div>
-            <div className="template-bar">
-              {TEMPLATE_LIST.map((t) => (
-                <button
-                  key={t.name}
-                  className={t.name === template ? 'tpl active' : 'tpl'}
-                  onClick={() => handleSwitch(t.name)}
-                >
-                  {t.label}
+
+            {showJoin && (
+              <div className="join-panel">
+                <h2>スマホで参加</h2>
+                {qr && <img className="qr" src={qr} alt="QR" />}
+                <p className="room">ルーム <b>{room}</b></p>
+                <div className="join-chips">
+                  <span style={{ color: PlayerConfig.colors[0] }}>
+                    {connected[0] ? '● P1 接続' : '○ P1 待ち'}
+                  </span>
+                  <span style={{ color: PlayerConfig.colors[1] }}>
+                    {connected[1] ? '● P2 接続' : '○ P2 待ち'}
+                  </span>
+                </div>
+                <button className="start-btn" onClick={() => setShowJoin(false)}>
+                  はじめる
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {result && (
+              <div className="result-panel">
+                <h1>TIME UP!</h1>
+                <div className="result-scores">
+                  <span style={{ color: PlayerConfig.colors[0] }}>
+                    {PlayerConfig.names[0]}: {result[0]}
+                  </span>
+                  {connected[1] && (
+                    <span style={{ color: PlayerConfig.colors[1] }}>
+                      {PlayerConfig.names[1]}: {result[1]}
+                    </span>
+                  )}
+                </div>
+                <p className="winner">{winnerText(result)}</p>
+                <p className="next">まもなく次のステージ…</p>
+              </div>
+            )}
           </>
         )}
 
         {phase !== 'playing' && (
           <div className="overlay">
-            <h1>指差し3Dシューティング</h1>
-            <p className="subtitle">Toy Mania風</p>
-
+            <h1>まとあて 3D シューティング</h1>
+            <p className="subtitle">Toy Mania風 ・ 2人対戦</p>
             {phase === 'idle' && (
               <>
                 <p>操作方法を選んでください。</p>
                 <div className="mode-row">
                   <button className="start-btn" onClick={handlePhone}>
-                    📱 スマホで操作（おすすめ）
+                    📱 スマホで対戦（おすすめ）
                   </button>
                   <button className="start-btn secondary" onClick={handleCamera}>
-                    📷 カメラで操作
+                    📷 カメラで1人
                   </button>
                 </div>
               </>
             )}
-
-            {phase === 'hostwait' && (
-              <>
-                <p>スマホでQRを読み取り、コントローラを開いてください。</p>
-                {qr && <img className="qr" src={qr} alt="QR" />}
-                <p className="room">ルーム: <b>{room}</b></p>
-                <p className="url">{ctrlUrl}</p>
-                <p className="conn">スマホの接続待ち...</p>
-              </>
-            )}
-
             {phase === 'loading' && <p>読み込み中...</p>}
-
             {phase === 'error' && (
               <>
                 <p className="error">起動に失敗しました: {errorMsg}</p>

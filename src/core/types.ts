@@ -50,10 +50,5 @@ export enum TargetType {
   Bonus = 'Bonus',
 }
 
-/** ステージテンプレート種別 (Phase1)。 */
-export type TemplateName =
-  | 'photo'
-  | 'sliders'
-  | 'matrix'
-  | 'chains'
-  | 'hameggs';
+/** ステージテンプレート種別。 */
+export type TemplateName = 'photo';

@@ -8,6 +8,7 @@ import {
 } from '../config/GameConfig';
 import type { Assets } from '../core/Assets';
 import type { Camera } from '../core/Camera';
+import type { Player } from '../core/Player';
 import { TargetState, TargetType, TrackingState, type Vec3 } from '../core/types';
 import type { CursorController } from '../cursor/CursorController';
 import type { FeedbackManager } from '../feedback/FeedbackManager';
@@ -34,11 +35,10 @@ export class Renderer {
 
   render(
     template: StageTemplate,
-    cursor: CursorController,
+    players: Player[],
     feedback: FeedbackManager,
     projectiles: ProjectileSystem,
     camera: Camera,
-    combo: number,
   ): void {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -47,7 +47,6 @@ export class Renderer {
     this.drawBackground(useImageBg);
 
     if (!useImageBg) {
-      // 描画ステージ(3D)のみ床グリッド・装飾を出す。
       const props = template.getProps?.() ?? [];
       this.drawFloorGrid(camera);
       this.drawProps(props.filter((p) => !this.isForeground(p)), camera);
@@ -55,16 +54,16 @@ export class Renderer {
       this.drawWorld(template, projectiles, camera);
       this.drawProps(props.filter((p) => this.isForeground(p)), camera);
     } else {
-      // 画像ステージ: 背景画像の上に的スプライトと弾(奥行き順)。
       this.drawWorld(template, projectiles, camera);
     }
 
     this.drawDebris(feedback);
     this.drawScoreTexts(feedback);
     this.drawMarkers(feedback);
-    this.drawAimGuide(cursor);
-    this.drawCursor(cursor);
-    this.drawCombo(combo);
+    // 各プレイヤーのカーソルを色分けで描画。
+    for (const p of players) {
+      if (p.connected) this.drawCursor(p.cursor, p.color);
+    }
   }
 
   /**
@@ -393,7 +392,7 @@ export class Renderer {
       const ratio = i / pts.length;
       ctx.save();
       ctx.globalAlpha = ratio * 0.7;
-      ctx.strokeStyle = WorldConfig.ballColor;
+      ctx.strokeStyle = proj.color;
       ctx.lineWidth = Math.max(1, proj.radius * b.scale * ratio);
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -406,8 +405,8 @@ export class Renderer {
     if (!c.visible) return;
     const r = Math.max(1.5, proj.radius * c.scale);
     ctx.save();
-    ctx.fillStyle = WorldConfig.ballColor;
-    ctx.shadowColor = WorldConfig.ballColor;
+    ctx.fillStyle = proj.color;
+    ctx.shadowColor = proj.color;
     ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
@@ -436,7 +435,7 @@ export class Renderer {
       const r = 18 + (1 - alpha) * 36;
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = FeedbackConfig.hitMarkerColor;
+      ctx.strokeStyle = m.color;
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.arc(m.position.x, m.position.y, r, 0, Math.PI * 2);
@@ -452,9 +451,7 @@ export class Renderer {
       const y = s.position.y - t * FeedbackConfig.scoreFloatPx;
       ctx.save();
       ctx.globalAlpha = Math.max(0, s.life / s.maxLife);
-      ctx.fillStyle = s.big
-        ? FeedbackConfig.scoreColorBig
-        : FeedbackConfig.scoreColor;
+      ctx.fillStyle = s.color;
       ctx.font = `bold ${s.big ? 40 : 26}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -465,43 +462,12 @@ export class Renderer {
     }
   }
 
-  private drawAimGuide(cursor: CursorController): void {
-    if (cursor.getState() !== TrackingState.Tracking) return;
-    const { ctx, canvas } = this;
-    const aim = cursor.getPosition();
-    ctx.save();
-    ctx.globalAlpha = 0.3;
-    ctx.strokeStyle = CursorConfig.colorTracking;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([10, 12]);
-    ctx.beginPath();
-    ctx.moveTo(canvas.width / 2, canvas.height);
-    ctx.lineTo(aim.x, aim.y);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  private drawCombo(combo: number): void {
-    if (combo < 2) return;
-    const { ctx, canvas } = this;
-    ctx.save();
-    ctx.fillStyle = '#ffd60a';
-    ctx.font = 'bold 36px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.shadowColor = 'rgba(0,0,0,0.7)';
-    ctx.shadowBlur = 6;
-    ctx.fillText(`${combo} COMBO`, canvas.width / 2, 16);
-    ctx.restore();
-  }
-
-  private drawCursor(cursor: CursorController): void {
+  private drawCursor(cursor: CursorController, playerColor: string): void {
     const { ctx } = this;
     const p = cursor.getPosition();
     const tracking = cursor.getState() === TrackingState.Tracking;
-    const color = tracking
-      ? CursorConfig.colorTracking
-      : CursorConfig.colorLost;
+    // 追跡中はプレイヤー色、Lost時は赤。
+    const color = tracking ? playerColor : CursorConfig.colorLost;
 
     ctx.save();
     ctx.strokeStyle = color;
