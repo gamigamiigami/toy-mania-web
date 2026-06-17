@@ -2,8 +2,7 @@ import {
   CameraConfig,
   PlayerConfig,
   RoundConfig,
-  TargetConfig,
-  TemplatesConfig,
+  STAGE_INFO,
 } from '../config/GameConfig';
 import { Assets } from './Assets';
 import { Camera } from './Camera';
@@ -11,6 +10,7 @@ import { EventBus, type GameBus } from './EventBus';
 import { FeedbackManager } from '../feedback/FeedbackManager';
 import { MediaPipeBridge } from '../input/MediaPipeBridge';
 import { Player } from './Player';
+import { Sound } from './Sound';
 import type { StageTemplate } from '../stage/StageTemplate';
 import { createTemplate } from '../stage/templates';
 import { TrackingState, type PointerResult, type TemplateName } from './types';
@@ -35,8 +35,10 @@ export class GameEngine {
   private readonly autoFire: AutoFireSystem;
   private readonly renderer: Renderer;
   private readonly players: Player[];
+  private readonly sound = new Sound();
+  private stageIndex = 0;
   private template: StageTemplate;
-  private templateName: TemplateName = TemplatesConfig.default;
+  private templateName: TemplateName = STAGE_INFO[0].name as TemplateName;
 
   private rafId = 0;
   private lastTime = 0;
@@ -53,6 +55,8 @@ export class GameEngine {
   onRoundStart: () => void = () => {};
   onWaiting: () => void = () => {};
   onPlayerConnected: (playerId: number) => void = () => {};
+  /** 次にプレイするステージ名 (待機中に表示)。 */
+  onStage: (label: string) => void = () => {};
 
   constructor(
     private readonly video: HTMLVideoElement,
@@ -88,6 +92,7 @@ export class GameEngine {
     }
     this.running = true;
     this.lastTime = performance.now();
+    this.onStage(STAGE_INFO[this.stageIndex].label);
     this.loop(this.lastTime);
   }
 
@@ -110,6 +115,7 @@ export class GameEngine {
     if (!p || !p.connected) return;
     const ray = this.camera.screenToRay(p.cursor.getPosition());
     this.projectiles.launch(ray, curve, id, p.color);
+    this.sound.fire();
   }
 
   getTemplateName(): TemplateName {
@@ -146,6 +152,7 @@ export class GameEngine {
 
   /** ラウンド開始 (ホストが手動でスタート)。スコア/的をリセットしてカウント開始。 */
   startMatch(): void {
+    this.sound.init(); // ユーザー操作で音声を起動
     for (const p of this.players) p.reset();
     this.template = createTemplate(this.templateName);
     this.projectiles.clear();
@@ -158,11 +165,15 @@ export class GameEngine {
 
   private enterWaiting(): void {
     this.phase = 'waiting';
+    // 次のステージへローテーション。
+    this.stageIndex = (this.stageIndex + 1) % STAGE_INFO.length;
+    this.templateName = STAGE_INFO[this.stageIndex].name as TemplateName;
     for (const p of this.players) p.reset();
     this.template = createTemplate(this.templateName);
     this.projectiles.clear();
     this.players.forEach((p) => this.onScoreChange(p.id, 0));
     this.onTime(RoundConfig.durationSec);
+    this.onStage(STAGE_INFO[this.stageIndex].label);
     this.onWaiting();
   }
 
@@ -173,17 +184,23 @@ export class GameEngine {
     }
     void now;
     this.template.update(dt);
-    const hits = this.projectiles.update(dt, this.template.getTargets());
+    const obstacles = this.template.getObstacles?.() ?? [];
+    const hits = this.projectiles.update(
+      dt,
+      this.template.getTargets(),
+      obstacles,
+    );
     for (const hit of hits) {
       const gained = this.template.onHit(hit.target);
       const pl = this.players[hit.playerId];
       pl?.score.add(gained);
+      this.sound.hit(gained);
       const proj = this.camera.project(hit.point);
       if (proj.visible && pl) {
         this.feedback.addHit({ x: proj.x, y: proj.y }, gained, pl.color);
         this.feedback.addBreak(
           { x: proj.x, y: proj.y },
-          TargetConfig.radius * proj.scale,
+          hit.target.radius * proj.scale,
         );
       }
       if (pl && this.phase === 'playing') {
@@ -211,6 +228,7 @@ export class GameEngine {
       if (this.timeLeft <= 0) {
         this.phase = 'result';
         this.resultLeft = RoundConfig.resultSec;
+        this.sound.roundEnd();
         this.onRoundOver(this.players.map((p) => p.score.getScore()));
       }
     } else if (this.phase === 'result') {

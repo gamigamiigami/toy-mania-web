@@ -77,15 +77,37 @@ export class Renderer {
   ): void {
     type Item =
       | { z: number; kind: 't'; t: ReturnType<StageTemplate['getTargets']>[number] }
-      | { z: number; kind: 'p'; p: ReturnType<ProjectileSystem['getProjectiles']>[number] };
+      | { z: number; kind: 'p'; p: ReturnType<ProjectileSystem['getProjectiles']>[number] }
+      | { z: number; kind: 'o'; o: { x: number; y: number; z: number; radius: number } };
     const items: Item[] = [];
     for (const t of template.getTargets()) items.push({ z: t.position.z, kind: 't', t });
     for (const p of projectiles.getProjectiles()) items.push({ z: p.position.z, kind: 'p', p });
+    for (const o of template.getObstacles?.() ?? []) items.push({ z: o.z, kind: 'o', o });
     items.sort((a, b) => b.z - a.z); // 奥(z大)から手前(z小)へ
     for (const it of items) {
       if (it.kind === 't') this.drawTargetOne(it.t, camera);
-      else this.drawProjectileOne(it.p, camera);
+      else if (it.kind === 'p') this.drawProjectileOne(it.p, camera);
+      else this.drawObstacle(it.o, camera);
     }
+  }
+
+  private drawObstacle(
+    o: { x: number; y: number; z: number; radius: number },
+    camera: Camera,
+  ): void {
+    const { ctx } = this;
+    const p = camera.project({ x: o.x, y: o.y, z: o.z });
+    if (!p.visible) return;
+    const r = o.radius * p.scale;
+    ctx.save();
+    ctx.fillStyle = 'rgba(90, 80, 70, 0.9)';
+    ctx.strokeStyle = 'rgba(40, 35, 30, 0.9)';
+    ctx.lineWidth = Math.max(2, r * 0.06);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   private isForeground(p: SceneProp): boolean {

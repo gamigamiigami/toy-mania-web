@@ -30,6 +30,8 @@ export class Target {
   readonly iconIndex: number | null;
   /** 横移動速度 (スライダー用、ワールド単位/秒)。 */
   vx = 0;
+  /** 汎用パラメータ (オービット角・モグラ経過など、テンプレートが利用)。 */
+  phase = 0;
   /** 残り生存時間 (ポップアップ/ボーナス用)。 */
   life: number;
   state: TargetState = TargetState.Spawn;

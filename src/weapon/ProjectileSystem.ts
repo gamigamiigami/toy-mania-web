@@ -1,5 +1,5 @@
 import { WorldConfig } from '../config/GameConfig';
-import type { Vec3 } from '../core/types';
+import type { Obstacle, Vec3 } from '../core/types';
 import type { Target } from '../target/Target';
 import { Projectile } from './Projectile';
 
@@ -44,11 +44,26 @@ export class ProjectileSystem {
    * ボールを進め、ターゲットとの衝突 (球vs球) を判定する。
    * @returns このフレームで発生した命中の配列
    */
-  update(dt: number, targets: readonly Target[]): ProjectileHit[] {
+  update(
+    dt: number,
+    targets: readonly Target[],
+    obstacles: readonly Obstacle[] = [],
+  ): ProjectileHit[] {
     const hits: ProjectileHit[] = [];
 
     for (const p of this.projectiles) {
       p.update(dt);
+      // 障害物に当たったら消滅 (得点なし)。
+      for (const o of obstacles) {
+        const ox = p.position.x - o.x;
+        const oy = p.position.y - o.y;
+        const oz = p.position.z - o.z;
+        const rr = o.radius + p.radius;
+        if (ox * ox + oy * oy + oz * oz <= rr * rr) {
+          p.kill();
+          break;
+        }
+      }
       for (const t of targets) {
         const reach = p.radius + t.radius * WorldConfig.hitboxMultiplier;
         const dx = p.position.x - t.position.x;

@@ -81,6 +81,80 @@ export const PlayerConfig = {
   maxPlayers: 4,
 } as const;
 
+/** 得点階層。距離/サイズ/動きで差をつける。 */
+export const ScoreTier = {
+  low: 100,
+  mid: 300,
+  high: 600,
+  top: 1000,
+} as const;
+
+/**
+ * ステージごとのパラメータ (ラフ)。座標はワールド単位。
+ */
+export const StagesConfig = {
+  /** 3層ギャラリー: 手前スライド / 中ポップアップ / 奥オービット。 */
+  gallery: {
+    near: { z: 5, y: -0.9, speed: 3.0, count: 3, score: ScoreTier.low },
+    midHoles: [
+      { x: -2.6, y: 0.5, z: 8 },
+      { x: 0, y: 1.0, z: 8.5 },
+      { x: 2.6, y: 0.5, z: 8 },
+    ],
+    midLife: 1.6,
+    midRespawn: 0.7,
+    midScore: ScoreTier.mid,
+    far: { cx: 0, cy: 1.6, z: 13, radius: 2.4, count: 2, speed: 1.2, score: ScoreTier.high, tr: 0.5 },
+  },
+
+  /** 回転オービット塔: 2つのリングが3D周回。 */
+  orbit: {
+    rings: [
+      { z: 8, r: 2.6, count: 3, speed: 1.0, score: ScoreTier.mid, tr: 0.6, cy: 0.6 },
+      { z: 13, r: 3.4, count: 4, speed: 1.6, score: ScoreTier.high, tr: 0.42, cy: 1.4 },
+    ],
+  },
+
+  /** カーブ迫りコース: 障害物の裏をカーブで狙う。 */
+  curve: {
+    obstacles: [
+      { x: -1.4, y: 0.2, z: 8, radius: 1.3 },
+      { x: 1.8, y: 0.7, z: 9, radius: 1.3 },
+    ],
+    targets: [
+      { x: -3.2, y: 0.5, z: 10, score: ScoreTier.high },
+      { x: 3.3, y: 0.9, z: 11, score: ScoreTier.high },
+      { x: 0, y: -0.5, z: 6.5, score: ScoreTier.mid },
+    ],
+    respawn: 1.0,
+    tr: 0.7,
+  },
+
+  /** 立体モグラ叩き: 奥行き3段の穴から上下に出没。 */
+  mole: {
+    cols: [-2.7, 0, 2.7],
+    rows: [
+      { yDown: -1.6, yUp: -0.5, z: 6, score: ScoreTier.low },
+      { yDown: -1.4, yUp: 0.4, z: 9, score: ScoreTier.mid },
+      { yDown: -1.2, yUp: 1.3, z: 12.5, score: ScoreTier.high },
+    ],
+    riseSec: 0.22,
+    holdSec: 1.3,
+    sinkSec: 0.22,
+    gapSec: 0.5,
+    active: 5,
+    tr: 0.7,
+  },
+} as const;
+
+/** ステージ表示名 と ローテーション順。 */
+export const STAGE_INFO: { name: string; label: string }[] = [
+  { name: 'gallery', label: '3層ギャラリー' },
+  { name: 'orbit', label: '回転オービット塔' },
+  { name: 'curve', label: 'カーブ迫りコース' },
+  { name: 'mole', label: '立体モグラ叩き' },
+];
+
 export const ControllerConfig = {
   sensX: 0.03,
   sensY: 0.03,

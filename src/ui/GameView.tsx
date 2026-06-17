@@ -31,6 +31,7 @@ export function GameView() {
   const [errorMsg, setErrorMsg] = useState('');
   const [qr, setQr] = useState('');
   const [room, setRoom] = useState('');
+  const [stageLabel, setStageLabel] = useState('');
 
   useEffect(() => {
     return () => {
@@ -56,6 +57,7 @@ export function GameView() {
       setMatchPhase('result');
     };
     engine.onWaiting = () => setMatchPhase('waiting');
+    engine.onStage = setStageLabel;
     engine.onPlayerConnected = (id) =>
       setConnected((arr) => {
         const next = [...arr];
@@ -152,11 +154,13 @@ export function GameView() {
                 )}
               </div>
               <span className="timer">{timeLeft}</span>
+              {stageLabel && <span className="stage-chip">{stageLabel}</span>}
             </div>
 
             {matchPhase === 'waiting' && (
               <div className="join-panel">
                 <h2>{isPhone ? 'スマホで参加 → スタート' : '準備OK？'}</h2>
+                {stageLabel && <p className="stage-name">ステージ: {stageLabel}</p>}
                 {isPhone && qr && <img className="qr" src={qr} alt="QR" />}
                 {isPhone && (
                   <>

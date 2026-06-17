@@ -1,4 +1,4 @@
-import type { Vec3 } from '../core/types';
+import type { Obstacle, Vec3 } from '../core/types';
 import type { Target } from '../target/Target';
 import type { SceneProp } from './Scene';
 
@@ -31,4 +31,6 @@ export interface StageTemplate {
   getGuides(): GuideSegment[];
   /** 背景・建物などのシーン装飾 (任意)。 */
   getProps?(): SceneProp[];
+  /** 弾を遮る障害物 (任意)。 */
+  getObstacles?(): Obstacle[];
 }
