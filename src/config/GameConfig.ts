@@ -77,7 +77,7 @@ export const ControllerConfig = {
   sensY: 0.03,
   /** 向きの符号 (鏡像/上下が逆なら反転)。 */
   signX: -1,
-  signY: 1,
+  signY: -1,
 } as const;
 
 /**
