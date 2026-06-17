@@ -139,3 +139,72 @@ body {
 .error {
   color: #ff453a;
 }
+
+.mode-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.start-btn.secondary {
+  background: rgba(20, 40, 70, 0.8);
+  color: #cfe8ff;
+  border: 1px solid rgba(120, 180, 255, 0.5);
+}
+
+.qr {
+  width: 240px;
+  height: 240px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.url {
+  font-size: 12px;
+  color: #8e8e93;
+  word-break: break-all;
+  max-width: 90%;
+}
+
+.room b {
+  color: #00e5ff;
+  letter-spacing: 0.1em;
+}
+
+/* スマホ・コントローラ画面 */
+.controller {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  padding: 24px;
+}
+
+.controller h1 {
+  font-size: 28px;
+}
+
+.ctrl-btn {
+  padding: 18px 36px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #001018;
+  background: #00e5ff;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ctrl-btn:disabled {
+  opacity: 0.4;
+}
+
+.controller .conn {
+  color: #9fe7ff;
+}

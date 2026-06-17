@@ -8,7 +8,9 @@ import { MediaPipeBridge } from '../input/MediaPipeBridge';
 import { ScoreManager } from '../score/ScoreManager';
 import type { StageTemplate } from '../stage/StageTemplate';
 import { createTemplate } from '../stage/templates';
-import type { TemplateName } from './types';
+import { TrackingState, type PointerResult, type TemplateName, type Vec2 } from './types';
+
+export type InputMode = 'camera' | 'remote';
 import { AutoFireSystem } from '../weapon/AutoFireSystem';
 import { ProjectileSystem } from '../weapon/ProjectileSystem';
 import { Renderer } from '../ui/Renderer';
@@ -39,6 +41,8 @@ export class GameEngine {
   private rafId = 0;
   private lastTime = 0;
   private running = false;
+  /** remote(スマホ)入力時の最新照準。 */
+  private remoteAim: Vec2 | null = null;
 
   /** UI への通知 (Event駆動)。 */
   onScoreChange: (score: number) => void = () => {};
@@ -47,6 +51,7 @@ export class GameEngine {
   constructor(
     private readonly video: HTMLVideoElement,
     canvas: HTMLCanvasElement,
+    private readonly inputMode: InputMode = 'camera',
   ) {
     const w = CameraConfig.width;
     const h = CameraConfig.height;
@@ -70,11 +75,18 @@ export class GameEngine {
   }
 
   async start(): Promise<void> {
-    await this.bridge.init();
-    await this.setupCamera();
+    if (this.inputMode === 'camera') {
+      await this.bridge.init();
+      await this.setupCamera();
+    }
     this.running = true;
     this.lastTime = performance.now();
     this.loop(this.lastTime);
+  }
+
+  /** remote(スマホ)から照準を受け取る (正規化 0..1)。 */
+  setRemoteAim(x: number, y: number): void {
+    this.remoteAim = { x, y };
   }
 
   /** ステージテンプレートを切り替える (UI から)。 */
@@ -109,8 +121,13 @@ export class GameEngine {
     const dt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
 
-    // --- Aim ---
-    const pointer = this.bridge.detect(this.video, now);
+    // --- Aim (カメラ or スマホ) ---
+    const pointer: PointerResult =
+      this.inputMode === 'camera'
+        ? this.bridge.detect(this.video, now)
+        : this.remoteAim
+          ? { state: TrackingState.Tracking, position: this.remoteAim }
+          : { state: TrackingState.Lost, position: null };
     this.cursor.update(pointer, dt);
 
     // --- Shot (自動連射: Tracking 中のみ) ---

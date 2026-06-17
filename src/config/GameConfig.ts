@@ -67,6 +67,11 @@ export const WeaponConfig = {
   fireIntervalSec: 0.5,
 } as const;
 
+export const ControllerConfig = {
+  /** スマホ・ジャイロの感度 (1度あたりの正規化移動量)。大きいほど少しの傾きで端へ。 */
+  sensitivity: 0.03,
+} as const;
+
 /**
  * 3D ワールド設定。
  * x:右+ / y:上+ / z:奥+。カメラは原点(0,0,0)で +z 方向を向く。
