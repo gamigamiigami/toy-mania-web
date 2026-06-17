@@ -173,78 +173,134 @@ body {
   letter-spacing: 0.1em;
 }
 
-/* スマホ・コントローラ画面 */
+/* スマホ・コントローラ画面 (おもちゃ箱/牧場テーマ) */
 .controller {
   width: 100vw;
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 18px;
+  justify-content: flex-start;
+  gap: 16px;
   text-align: center;
-  padding: 24px;
+  padding: 20px 16px 32px;
+  color: #3a2a18;
+  background: linear-gradient(#7ec8ff 0%, #aee0ff 42%, #d8f3c9 64%, #79c34f 100%);
 }
 
-.controller h1 {
-  font-size: 28px;
-}
-
-.ctrl-btn {
-  padding: 18px 36px;
-  font-size: 20px;
-  font-weight: 800;
-  color: #001018;
-  background: #00e5ff;
-  border: none;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.ctrl-btn:disabled {
-  opacity: 0.4;
+.ctrl-head h1 {
+  font-size: 30px;
+  color: #c0392b;
+  text-shadow: 0 2px 0 #fff3, 0 3px 6px rgba(0, 0, 0, 0.2);
+  margin-bottom: 2px;
 }
 
 .controller .conn {
-  color: #9fe7ff;
-}
-
-.controller .hint {
-  color: #8e8e93;
+  color: #2e6b3f;
+  font-weight: 700;
   font-size: 13px;
 }
 
+.ctrl-center {
+  margin-top: 18vh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: center;
+}
+
+.controller p {
+  color: #3a2a18;
+}
+
+.ctrl-btn {
+  padding: 16px 34px;
+  font-size: 19px;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(#ffb23e, #f2962b);
+  border: 3px solid #fff;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 6px 0 #c9761c, 0 8px 14px rgba(0, 0, 0, 0.25);
+}
+
+.ctrl-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 #c9761c, 0 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+.ctrl-btn:disabled {
+  opacity: 0.5;
+}
+
+.ctrl-btn.small {
+  padding: 11px 22px;
+  font-size: 15px;
+  background: linear-gradient(#7ec3ef, #4aa3df);
+  box-shadow: 0 5px 0 #2f7cb5, 0 6px 10px rgba(0, 0, 0, 0.2);
+}
+
+.controller .hint {
+  color: #2e6b3f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .swipe-pad {
-  width: min(80vw, 320px);
-  height: 320px;
-  border: 2px dashed rgba(120, 180, 255, 0.5);
-  border-radius: 20px;
+  width: min(82vw, 340px);
+  height: min(82vw, 340px);
+  max-height: 52vh;
+  border: 6px solid #b5793f;
+  border-radius: 22px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   position: relative;
   touch-action: none;
   user-select: none;
-  background: rgba(20, 40, 70, 0.4);
+  overflow: hidden;
+  /* 木箱の中＝空と草原 */
+  background: linear-gradient(#bfe6ff 0%, #e7f6ff 55%, #cdeeb0 56%, #9ad36a 100%);
+  box-shadow: inset 0 0 0 4px #e9c89a, 0 8px 16px rgba(0, 0, 0, 0.25);
+}
+
+.swipe-pad .guide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .swipe-pad .ball {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 24px;
+  width: 66px;
+  height: 66px;
+  margin-bottom: 22px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #6ff0ff, #00a9c7);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1;
+  background:
+    radial-gradient(circle at 35% 28%, #fff 0%, #ffd0d0 18%, #e23b3b 55%, #b51d1d 100%);
+  border: 3px solid #fff;
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.35);
 }
 
 .swipe-pad .swipe-label {
   position: absolute;
-  top: 16px;
-  color: #cfe8ff;
-  font-weight: 700;
+  top: 12px;
+  color: #2e6b3f;
+  font-weight: 800;
+  text-shadow: 0 1px 2px #fff;
 }
 
-.ctrl-btn.small {
-  padding: 12px 24px;
-  font-size: 16px;
+.ctrl-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ctrl-actions .shots {
+  font-weight: 900;
+  font-size: 18px;
+  color: #c0392b;
 }
