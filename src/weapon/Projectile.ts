@@ -19,15 +19,20 @@ export class Projectile {
   readonly trail: TrailPoint[] = [];
   private age = 0;
   private alive = true;
+  /** 横方向の加速 (カーブ。ワールド単位/秒^2)。0=直進。 */
+  private readonly curve: number;
 
-  constructor(position: Vec3, velocity: Vec3) {
+  constructor(position: Vec3, velocity: Vec3, curve = 0) {
     this.position = { ...position };
     this.velocity = { ...velocity };
+    this.curve = curve;
   }
 
   update(dt: number): void {
     // 重力で下向きに加速 (y は上が正)。
     this.velocity.y -= WorldConfig.gravity * dt;
+    // カーブ: 横方向に加速して弧を描く。
+    this.velocity.x += this.curve * dt;
     this.position.x += this.velocity.x * dt;
     this.position.y += this.velocity.y * dt;
     this.position.z += this.velocity.z * dt;

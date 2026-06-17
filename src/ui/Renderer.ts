@@ -286,9 +286,21 @@ export class Renderer {
     // 命中の瞬間は割れる演出のため少し拡大して描く。
     const drawR = isHit ? r * 1.25 : r;
 
+    // 出現アニメ: 倒れた的が立ち上がる(下端を軸に縦スケール)。
+    const sy = t.spawnScaleY();
+    const animated = sy !== 1;
+    if (animated) {
+      const bottomY = p.y + r;
+      ctx.save();
+      ctx.translate(0, bottomY);
+      ctx.scale(1, sy);
+      ctx.translate(0, -bottomY);
+    }
+
     // スプライト的 (画像) があれば優先して描く。不透明で奥の球を隠す。
     if (t.iconIndex !== null && this.assets.targetsReady) {
       this.drawSprite(t.iconIndex, p.x, p.y, drawR, isHit);
+      if (animated) ctx.restore();
       return;
     }
 
@@ -327,6 +339,8 @@ export class Renderer {
       ctx.fillText(t.label, p.x, p.y);
       ctx.restore();
     }
+
+    if (animated) ctx.restore();
   }
 
   /** 的スプライトシートの1セルを円形に切り抜いて描く。 */

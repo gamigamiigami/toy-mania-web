@@ -32,8 +32,9 @@ export class Target {
   vx = 0;
   /** 残り生存時間 (ポップアップ/ボーナス用)。 */
   life: number;
-  state: TargetState = TargetState.Idle;
+  state: TargetState = TargetState.Spawn;
   private flash = 0;
+  private spawnT = 0;
 
   constructor(opts: TargetOptions) {
     this.position = { ...opts.position };
@@ -53,14 +54,31 @@ export class Target {
     return true;
   }
 
-  /** 被弾フラッシュの進行。寿命切れの判定はテンプレートが行う。 */
+  /** 状態の進行 (出現アニメ / 被弾フラッシュ)。寿命判定はテンプレートが行う。 */
   update(dt: number): void {
-    if (this.state === TargetState.Hit) {
+    if (this.state === TargetState.Spawn) {
+      this.spawnT += dt;
+      if (this.spawnT >= TargetConfig.spawnRiseSec) {
+        this.state = TargetState.Idle;
+      }
+    } else if (this.state === TargetState.Hit) {
       this.flash += dt;
       if (this.flash >= TargetConfig.hitFlashSec) {
         this.state = TargetState.Destroyed;
       }
     }
+  }
+
+  /**
+   * 出現アニメの縦スケール (0..1)。倒れた的が立ち上がる表現。
+   * EaseOutBack で少しオーバーシュート。Spawn 以外は 1。
+   */
+  spawnScaleY(): number {
+    if (this.state !== TargetState.Spawn) return 1;
+    const p = Math.min(1, this.spawnT / TargetConfig.spawnRiseSec);
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
   }
 
   /** 寿命切れで消す (ポップアップ消滅など)。 */

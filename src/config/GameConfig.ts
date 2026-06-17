@@ -78,6 +78,8 @@ export const ControllerConfig = {
   /** 向きの符号 (鏡像/上下が逆なら反転)。 */
   signX: -1,
   signY: -1,
+  /** スワイプ発射と判定する最小の上方向移動量 (px)。 */
+  swipeMinDist: 28,
 } as const;
 
 /**
@@ -107,6 +109,8 @@ export const WorldConfig = {
   maxZ: 22,
   /** 念のための最大生存時間 (秒)。 */
   maxLifeSec: 4,
+  /** スワイプの斜め量(-1..1)に掛ける横加速。大きいほど曲がる。 */
+  curveAccel: 26,
 } as const;
 
 /**
@@ -132,6 +136,8 @@ export const TargetConfig = {
   radius: 0.7,
   /** Hit フラッシュ表示時間 (秒)。 */
   hitFlashSec: 0.15,
+  /** 出現アニメ(起き上がり)の時間 (秒)。 */
+  spawnRiseSec: 0.35,
   /** 分類ごとの色。 */
   colors: {
     [TargetType.Normal]: '#ffd60a',

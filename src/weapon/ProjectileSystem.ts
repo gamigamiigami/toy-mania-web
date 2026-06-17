@@ -20,14 +20,17 @@ export class ProjectileSystem {
    * 照準レイ方向へボールを1発投げる。
    * @param rayDir カメラから奥へ伸びる単位方向ベクトル (Camera.screenToRay)
    */
-  launch(rayDir: Vec3): void {
+  launch(rayDir: Vec3, curveRatio = 0): void {
     const v = WorldConfig.throwSpeed;
     const velocity: Vec3 = {
       x: rayDir.x * v,
       y: rayDir.y * v,
       z: rayDir.z * v,
     };
-    this.projectiles.push(new Projectile({ ...WorldConfig.muzzle }, velocity));
+    const curve = curveRatio * WorldConfig.curveAccel;
+    this.projectiles.push(
+      new Projectile({ ...WorldConfig.muzzle }, velocity, curve),
+    );
   }
 
   /**

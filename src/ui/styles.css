@@ -208,3 +208,43 @@ body {
 .controller .conn {
   color: #9fe7ff;
 }
+
+.controller .hint {
+  color: #8e8e93;
+  font-size: 13px;
+}
+
+.swipe-pad {
+  width: min(80vw, 320px);
+  height: 320px;
+  border: 2px dashed rgba(120, 180, 255, 0.5);
+  border-radius: 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  background: rgba(20, 40, 70, 0.4);
+}
+
+.swipe-pad .ball {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6ff0ff, #00a9c7);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.swipe-pad .swipe-label {
+  position: absolute;
+  top: 16px;
+  color: #cfe8ff;
+  font-weight: 700;
+}
+
+.ctrl-btn.small {
+  padding: 12px 24px;
+  font-size: 16px;
+}

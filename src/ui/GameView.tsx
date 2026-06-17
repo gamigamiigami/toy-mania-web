@@ -66,6 +66,7 @@ export function GameView() {
       setPhase('hostwait');
       host.onConnected = async () => {
         host.onAim = (x, y) => engineRef.current?.setRemoteAim(x, y);
+        host.onFire = (curve) => engineRef.current?.fire(curve);
         try {
           await startEngine('remote');
         } catch (e) {

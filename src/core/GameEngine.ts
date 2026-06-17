@@ -93,6 +93,12 @@ export class GameEngine {
     this.remoteAim = { x, y };
   }
 
+  /** スワイプ発射 (curve: -1..1、0=直進、斜めでカーブ)。 */
+  fire(curve: number): void {
+    const ray = this.camera.screenToRay(this.cursor.getPosition());
+    this.projectiles.launch(ray, curve);
+  }
+
   /** ステージテンプレートを切り替える (UI から)。 */
   setTemplate(name: TemplateName): void {
     this.templateName = name;
@@ -134,8 +140,11 @@ export class GameEngine {
           : { state: TrackingState.Lost, position: null };
     this.cursor.update(pointer, dt);
 
-    // --- Shot (自動連射: Tracking 中のみ) ---
-    this.autoFire.update(dt, this.cursor.isTracking());
+    // --- Shot ---
+    // カメラ: 自動連射。スマホ: スワイプ発射(fire()で都度) なので自動連射しない。
+    if (this.inputMode === 'camera') {
+      this.autoFire.update(dt, this.cursor.isTracking());
+    }
 
     // --- ステージ更新 + Flight + Result ---
     this.template.update(dt);

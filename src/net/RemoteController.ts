@@ -1,5 +1,5 @@
 import { Peer, type DataConnection } from 'peerjs';
-import { peerIdForRoom, type AimMessage } from './messages';
+import { peerIdForRoom, type AimMessage, type FireMessage } from './messages';
 
 /**
  * RemoteController
@@ -25,6 +25,13 @@ export class RemoteController {
   sendAim(x: number, y: number): void {
     if (this.conn && this.conn.open) {
       const msg: AimMessage = { t: 'aim', x, y };
+      this.conn.send(msg);
+    }
+  }
+
+  sendFire(curve: number): void {
+    if (this.conn && this.conn.open) {
+      const msg: FireMessage = { t: 'fire', curve };
       this.conn.send(msg);
     }
   }

@@ -19,6 +19,8 @@ export class RemoteHost {
   onConnected: () => void = () => {};
   /** 照準受信 (正規化 0..1)。 */
   onAim: (x: number, y: number) => void = () => {};
+  /** 発射受信 (curve: -1..1)。 */
+  onFire: (curve: number) => void = () => {};
   /** 切断時。 */
   onClosed: () => void = () => {};
 
@@ -30,7 +32,9 @@ export class RemoteHost {
       conn.on('open', () => this.onConnected());
       conn.on('data', (data) => {
         const msg = data as ControllerMessage;
-        if (msg && msg.t === 'aim') this.onAim(msg.x, msg.y);
+        if (!msg) return;
+        if (msg.t === 'aim') this.onAim(msg.x, msg.y);
+        else if (msg.t === 'fire') this.onFire(msg.curve);
       });
       conn.on('close', () => this.onClosed());
     });

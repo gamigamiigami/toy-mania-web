@@ -6,7 +6,13 @@ export interface AimMessage {
   y: number;
 }
 
-export type ControllerMessage = AimMessage;
+/** スワイプ発射。curve は横カーブ量 (-1..1、0=直進)。 */
+export interface FireMessage {
+  t: 'fire';
+  curve: number;
+}
+
+export type ControllerMessage = AimMessage | FireMessage;
 
 /** ルームコードからPeerJSのIDを作る (公開ブローカ上の衝突を避けるため接頭辞)。 */
 export function peerIdForRoom(code: string): string {

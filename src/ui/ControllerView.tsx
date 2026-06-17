@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { ControllerConfig } from '../config/GameConfig';
 import { RemoteController } from '../net/RemoteController';
 
@@ -6,6 +6,9 @@ type Status = 'connecting' | 'ready' | 'closed';
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+function clamp(v: number, min: number, max: number): number {
+  return v < min ? min : v > max ? max : v;
 }
 
 /**
@@ -68,6 +71,28 @@ export function ControllerView({ room }: { room: string }) {
     neutral.current = null;
   };
 
+  // --- スワイプ発射 ---
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const [shots, setShots] = useState(0);
+
+  const onTouchStart = (e: TouchEvent) => {
+    const t = e.touches[0];
+    swipeStart.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: TouchEvent) => {
+    const s = swipeStart.current;
+    swipeStart.current = null;
+    if (!s) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    // 上方向スワイプで発射。斜め成分がカーブになる。
+    if (-dy < ControllerConfig.swipeMinDist) return;
+    const curve = clamp(dx / -dy, -1, 1);
+    ctrlRef.current?.sendFire(curve);
+    setShots((n) => n + 1); // 即補充(連射可)
+  };
+
   return (
     <div className="controller">
       <h1>🎯 コントローラ</h1>
@@ -91,8 +116,17 @@ export function ControllerView({ room }: { room: string }) {
         </>
       ) : (
         <>
-          <p>スマホを傾けて照準を動かします。</p>
-          <button className="ctrl-btn" onClick={recenter}>
+          <p>スマホを傾けて照準。下のボールを上にスワイプで発射！</p>
+          <p className="hint">まっすぐ＝直進 / 斜め＝カーブ</p>
+          <div
+            className="swipe-pad"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
+            <div className="ball" />
+            <span className="swipe-label">⬆ スワイプ発射（{shots}）</span>
+          </div>
+          <button className="ctrl-btn small" onClick={recenter}>
             中央にセット
           </button>
         </>
