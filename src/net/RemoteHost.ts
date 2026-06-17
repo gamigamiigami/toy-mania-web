@@ -16,7 +16,10 @@ import {
 export class RemoteHost {
   readonly code: string;
   private peer: Peer;
-  private conns: (DataConnection | null)[] = [null, null];
+  private conns: (DataConnection | null)[] = Array.from(
+    { length: PlayerConfig.maxPlayers },
+    () => null,
+  );
 
   onConnected: (playerId: number) => void = () => {};
   onAim: (playerId: number, x: number, y: number) => void = () => {};

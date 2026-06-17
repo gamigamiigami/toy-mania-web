@@ -82,8 +82,20 @@ body {
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
 }
 
+.vs-hud .players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  pointer-events: none;
+}
+
 .vs-hud .p {
-  font-size: clamp(20px, 3vw, 38px);
+  font-size: clamp(18px, 2.6vw, 34px);
+}
+
+.hint-small {
+  color: #9aa3ad;
+  font-size: 12px;
 }
 
 .vs-hud .p2.waiting {

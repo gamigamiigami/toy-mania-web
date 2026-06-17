@@ -75,10 +75,10 @@ export const RoundConfig = {
 } as const;
 
 export const PlayerConfig = {
-  /** プレイヤー色 (P1 / P2)。どっちがどっちか区別。 */
-  colors: ['#00e5ff', '#ff3bd0'] as const,
-  names: ['P1', 'P2'] as const,
-  maxPlayers: 2,
+  /** プレイヤー色 (最大4人)。色で区別。 */
+  colors: ['#00e5ff', '#ff3bd0', '#ffd60a', '#39d353'] as const,
+  names: ['P1', 'P2', 'P3', 'P4'] as const,
+  maxPlayers: 4,
 } as const;
 
 export const ControllerConfig = {

@@ -5,10 +5,11 @@ import { GameEngine } from '../core/GameEngine';
 import { RemoteHost } from '../net/RemoteHost';
 
 type Phase = 'idle' | 'loading' | 'playing' | 'error';
+type MatchPhase = 'waiting' | 'playing' | 'result';
 
 /**
  * GameView (画面側)
- * 責務: 操作方法の選択、スマホ接続(QR)、2人対戦のHUD(スコア/タイマー/リザルト)。
+ * 責務: 操作方法の選択、スマホ接続(QR)、開始の手動管理、2人対戦HUD。
  */
 export function GameView() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -17,14 +18,19 @@ export function GameView() {
   const hostRef = useRef<RemoteHost | null>(null);
 
   const [phase, setPhase] = useState<Phase>('idle');
-  const [scores, setScores] = useState<number[]>([0, 0]);
-  const [connected, setConnected] = useState<boolean[]>([false, false]);
+  const [matchPhase, setMatchPhase] = useState<MatchPhase>('waiting');
+  const [isPhone, setIsPhone] = useState(false);
+  const [scores, setScores] = useState<number[]>(() =>
+    PlayerConfig.colors.map(() => 0),
+  );
+  const [connected, setConnected] = useState<boolean[]>(() =>
+    PlayerConfig.colors.map(() => false),
+  );
   const [timeLeft, setTimeLeft] = useState(0);
   const [result, setResult] = useState<number[] | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [qr, setQr] = useState('');
   const [room, setRoom] = useState('');
-  const [showJoin, setShowJoin] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -41,8 +47,15 @@ export function GameView() {
         return next;
       });
     engine.onTime = setTimeLeft;
-    engine.onRoundOver = (sc) => setResult(sc);
-    engine.onRoundStart = () => setResult(null);
+    engine.onRoundStart = () => {
+      setResult(null);
+      setMatchPhase('playing');
+    };
+    engine.onRoundOver = (sc) => {
+      setResult(sc);
+      setMatchPhase('result');
+    };
+    engine.onWaiting = () => setMatchPhase('waiting');
     engine.onPlayerConnected = (id) =>
       setConnected((arr) => {
         const next = [...arr];
@@ -54,12 +67,14 @@ export function GameView() {
   const handleCamera = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     setPhase('loading');
+    setIsPhone(false);
     try {
       const engine = new GameEngine(videoRef.current, canvasRef.current, 'camera');
       wireEngine(engine);
       engineRef.current = engine;
-      setConnected([true, false]);
+      setConnected(PlayerConfig.colors.map((_, i) => i === 0));
       await engine.start();
+      setMatchPhase('waiting');
       setPhase('playing');
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
@@ -69,6 +84,7 @@ export function GameView() {
 
   const handlePhone = async () => {
     if (!videoRef.current || !canvasRef.current) return;
+    setIsPhone(true);
     try {
       const host = new RemoteHost();
       hostRef.current = host;
@@ -90,7 +106,7 @@ export function GameView() {
         });
 
       await engine.start();
-      setShowJoin(true);
+      setMatchPhase('waiting');
       setPhase('playing');
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
@@ -98,13 +114,20 @@ export function GameView() {
     }
   };
 
+  const startMatch = () => engineRef.current?.startMatch();
+
+  const ids = PlayerConfig.names.map((_, i) => i);
+
   const winnerText = (sc: number[]): string => {
-    const a = sc[0] ?? 0;
-    const b = sc[1] ?? 0;
-    if (!connected[1]) return `スコア ${a}`;
-    if (a === b) return '引き分け！';
-    return a > b ? `${PlayerConfig.names[0]} の勝ち！` : `${PlayerConfig.names[1]} の勝ち！`;
+    const conn = ids.filter((id) => connected[id]);
+    if (conn.length <= 1) return `スコア ${sc[conn[0] ?? 0] ?? 0}`;
+    const max = Math.max(...conn.map((id) => sc[id] ?? 0));
+    const winners = conn.filter((id) => (sc[id] ?? 0) === max);
+    if (winners.length > 1) return '引き分け！';
+    return `${PlayerConfig.names[winners[0]]} の勝ち！`;
   };
+
+  const canStart = isPhone ? connected.some((c) => c) : true;
 
   return (
     <div className="game-root">
@@ -115,53 +138,67 @@ export function GameView() {
         {phase === 'playing' && (
           <>
             <div className="vs-hud">
-              <span className="p p1" style={{ color: PlayerConfig.colors[0] }}>
-                {PlayerConfig.names[0]} {scores[0]}
-              </span>
+              <div className="players">
+                {ids.map((id) =>
+                  connected[id] ? (
+                    <span
+                      key={id}
+                      className="p"
+                      style={{ color: PlayerConfig.colors[id] }}
+                    >
+                      {PlayerConfig.names[id]} {scores[id]}
+                    </span>
+                  ) : null,
+                )}
+              </div>
               <span className="timer">{timeLeft}</span>
-              {connected[1] ? (
-                <span className="p p2" style={{ color: PlayerConfig.colors[1] }}>
-                  {PlayerConfig.names[1]} {scores[1]}
-                </span>
-              ) : (
-                <span className="p p2 waiting">P2 …</span>
-              )}
             </div>
 
-            {showJoin && (
+            {matchPhase === 'waiting' && (
               <div className="join-panel">
-                <h2>スマホで参加</h2>
-                {qr && <img className="qr" src={qr} alt="QR" />}
-                <p className="room">ルーム <b>{room}</b></p>
-                <div className="join-chips">
-                  <span style={{ color: PlayerConfig.colors[0] }}>
-                    {connected[0] ? '● P1 接続' : '○ P1 待ち'}
-                  </span>
-                  <span style={{ color: PlayerConfig.colors[1] }}>
-                    {connected[1] ? '● P2 接続' : '○ P2 待ち'}
-                  </span>
-                </div>
-                <button className="start-btn" onClick={() => setShowJoin(false)}>
-                  はじめる
+                <h2>{isPhone ? 'スマホで参加 → スタート' : '準備OK？'}</h2>
+                {isPhone && qr && <img className="qr" src={qr} alt="QR" />}
+                {isPhone && (
+                  <>
+                    <p className="room">ルーム <b>{room}</b></p>
+                    <div className="join-chips">
+                      {ids.map((id) => (
+                        <span key={id} style={{ color: PlayerConfig.colors[id] }}>
+                          {connected[id]
+                            ? `● ${PlayerConfig.names[id]}`
+                            : `○ ${PlayerConfig.names[id]}`}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <button
+                  className="start-btn"
+                  onClick={startMatch}
+                  disabled={!canStart}
+                >
+                  ▶ スタート（30秒）
                 </button>
+                {isPhone && !canStart && (
+                  <p className="hint-small">スマホが1台つながると開始できます</p>
+                )}
               </div>
             )}
 
-            {result && (
+            {matchPhase === 'result' && result && (
               <div className="result-panel">
                 <h1>TIME UP!</h1>
                 <div className="result-scores">
-                  <span style={{ color: PlayerConfig.colors[0] }}>
-                    {PlayerConfig.names[0]}: {result[0]}
-                  </span>
-                  {connected[1] && (
-                    <span style={{ color: PlayerConfig.colors[1] }}>
-                      {PlayerConfig.names[1]}: {result[1]}
-                    </span>
+                  {ids.map((id) =>
+                    connected[id] ? (
+                      <span key={id} style={{ color: PlayerConfig.colors[id] }}>
+                        {PlayerConfig.names[id]}: {result[id]}
+                      </span>
+                    ) : null,
                   )}
                 </div>
                 <p className="winner">{winnerText(result)}</p>
-                <p className="next">まもなく次のステージ…</p>
+                <p className="next">まもなく待機画面へ…</p>
               </div>
             )}
           </>

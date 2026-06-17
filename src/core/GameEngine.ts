@@ -19,7 +19,7 @@ import { ProjectileSystem } from '../weapon/ProjectileSystem';
 import { Renderer } from '../ui/Renderer';
 
 export type InputMode = 'camera' | 'remote';
-export type Phase = 'playing' | 'result';
+export type Phase = 'waiting' | 'playing' | 'result';
 
 /**
  * GameEngine
@@ -41,7 +41,7 @@ export class GameEngine {
   private rafId = 0;
   private lastTime = 0;
   private running = false;
-  private phase: Phase = 'playing';
+  private phase: Phase = 'waiting';
   private timeLeft = RoundConfig.durationSec;
   private resultLeft = 0;
 
@@ -51,6 +51,7 @@ export class GameEngine {
   onTime: (secondsLeft: number) => void = () => {};
   onRoundOver: (scores: number[]) => void = () => {};
   onRoundStart: () => void = () => {};
+  onWaiting: () => void = () => {};
   onPlayerConnected: (playerId: number) => void = () => {};
 
   constructor(
@@ -143,14 +144,53 @@ export class GameEngine {
     }
   }
 
-  private startRound(): void {
+  /** ラウンド開始 (ホストが手動でスタート)。スコア/的をリセットしてカウント開始。 */
+  startMatch(): void {
     for (const p of this.players) p.reset();
     this.template = createTemplate(this.templateName);
     this.projectiles.clear();
     this.timeLeft = RoundConfig.durationSec;
     this.phase = 'playing';
     this.players.forEach((p) => this.onScoreChange(p.id, 0));
+    this.onTime(RoundConfig.durationSec);
     this.onRoundStart();
+  }
+
+  private enterWaiting(): void {
+    this.phase = 'waiting';
+    for (const p of this.players) p.reset();
+    this.template = createTemplate(this.templateName);
+    this.projectiles.clear();
+    this.players.forEach((p) => this.onScoreChange(p.id, 0));
+    this.onTime(RoundConfig.durationSec);
+    this.onWaiting();
+  }
+
+  /** ゲーム本体の進行 (待機中も warmup として動かす)。 */
+  private runGameplay(dt: number, now: number): void {
+    if (this.inputMode === 'camera') {
+      this.autoFire.update(dt, this.players[0].cursor.isTracking());
+    }
+    void now;
+    this.template.update(dt);
+    const hits = this.projectiles.update(dt, this.template.getTargets());
+    for (const hit of hits) {
+      const gained = this.template.onHit(hit.target);
+      const pl = this.players[hit.playerId];
+      pl?.score.add(gained);
+      const proj = this.camera.project(hit.point);
+      if (proj.visible && pl) {
+        this.feedback.addHit({ x: proj.x, y: proj.y }, gained, pl.color);
+        this.feedback.addBreak(
+          { x: proj.x, y: proj.y },
+          TargetConfig.radius * proj.scale,
+        );
+      }
+      if (pl && this.phase === 'playing') {
+        this.onScoreChange(pl.id, pl.score.getScore());
+      }
+    }
+    for (const p of this.players) p.score.update(dt);
   }
 
   private loop = (now: number): void => {
@@ -161,41 +201,21 @@ export class GameEngine {
     this.updateAim(dt, now); // 照準は常時更新
     this.feedback.update(dt);
 
+    if (this.phase !== 'result') {
+      this.runGameplay(dt, now); // 待機中(warmup)とプレイ中に進行
+    }
+
     if (this.phase === 'playing') {
       this.timeLeft -= dt;
       this.onTime(Math.max(0, Math.ceil(this.timeLeft)));
-
-      if (this.inputMode === 'camera') {
-        this.autoFire.update(dt, this.players[0].cursor.isTracking());
-      }
-
-      this.template.update(dt);
-      const hits = this.projectiles.update(dt, this.template.getTargets());
-      for (const hit of hits) {
-        const gained = this.template.onHit(hit.target);
-        const pl = this.players[hit.playerId];
-        pl?.score.add(gained);
-        const proj = this.camera.project(hit.point);
-        if (proj.visible && pl) {
-          this.feedback.addHit({ x: proj.x, y: proj.y }, gained, pl.color);
-          this.feedback.addBreak(
-            { x: proj.x, y: proj.y },
-            TargetConfig.radius * proj.scale,
-          );
-        }
-        if (pl) this.onScoreChange(pl.id, pl.score.getScore());
-      }
-      for (const p of this.players) p.score.update(dt);
-
       if (this.timeLeft <= 0) {
         this.phase = 'result';
         this.resultLeft = RoundConfig.resultSec;
         this.onRoundOver(this.players.map((p) => p.score.getScore()));
       }
-    } else {
-      // リザルト中はゲームを止めて表示。
+    } else if (this.phase === 'result') {
       this.resultLeft -= dt;
-      if (this.resultLeft <= 0) this.startRound();
+      if (this.resultLeft <= 0) this.enterWaiting();
     }
 
     this.renderer.render(
