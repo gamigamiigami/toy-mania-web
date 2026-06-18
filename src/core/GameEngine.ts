@@ -55,6 +55,8 @@ export class GameEngine {
   onRoundStart: () => void = () => {};
   onWaiting: () => void = () => {};
   onPlayerConnected: (playerId: number) => void = () => {};
+  /** コンボ更新 (HUD表示用)。 */
+  onCombo: (playerId: number, combo: number) => void = () => {};
   /** 次にプレイするステージ名 (待機中に表示)。 */
   onStage: (label: string) => void = () => {};
 
@@ -211,20 +213,27 @@ export class GameEngine {
       obstacles,
     );
     for (const hit of hits) {
-      const gained = this.template.onHit(hit.target);
+      const base = this.template.onHit(hit.target);
       const pl = this.players[hit.playerId];
-      pl?.score.add(gained);
-      this.sound.hit(gained);
+      if (!pl) continue;
+      const awarded = pl.score.add(base); // コンボ倍率込みの実加点
+      this.sound.hit(awarded);
       const proj = this.camera.project(hit.point);
-      if (proj.visible && pl) {
-        this.feedback.addHit({ x: proj.x, y: proj.y }, gained, pl.color);
+      if (proj.visible) {
+        this.feedback.addHit(
+          { x: proj.x, y: proj.y },
+          awarded,
+          pl.color,
+          pl.score.getCombo(),
+        );
         this.feedback.addBreak(
           { x: proj.x, y: proj.y },
           hit.target.radius * proj.scale,
         );
       }
-      if (pl && this.phase === 'playing') {
+      if (this.phase === 'playing') {
         this.onScoreChange(pl.id, pl.score.getScore());
+        this.onCombo(pl.id, pl.score.getCombo());
       }
     }
     for (const p of this.players) p.score.update(dt);

@@ -93,59 +93,60 @@ export const ScoreTier = {
  * ステージごとのパラメータ (ラフ)。座標はワールド単位。
  */
 export const StagesConfig = {
-  /** 3層ギャラリー: 手前スライド / 中ポップアップ / 奥オービット。 */
+  /** 3層ギャラリー: 手前スライド / 中ポップアップ / 奥カルーセル。当てやすめ・高密度。 */
   gallery: {
-    near: { z: 5, y: -0.9, speed: 3.0, count: 3, score: ScoreTier.low },
+    near: { z: 5, y: -0.9, speed: 2.2, count: 4, score: ScoreTier.low },
     midHoles: [
-      { x: -2.6, y: 0.5, z: 8 },
-      { x: 0, y: 1.0, z: 8.5 },
-      { x: 2.6, y: 0.5, z: 8 },
+      { x: -2.6, y: 0.2, z: 7 },
+      { x: 0, y: 0.7, z: 7.4 },
+      { x: 2.6, y: 0.2, z: 7 },
     ],
-    midLife: 1.6,
-    midRespawn: 0.7,
+    midLife: 2.2,
+    midRespawn: 0.4,
     midScore: ScoreTier.mid,
-    // 奥オービットは X-Z 平面(水平カルーセル)で手前↔奥に動く。
-    far: { cx: 0, cy: 1.4, z: 11, radius: 3.0, count: 2, speed: 1.0, score: ScoreTier.high, tr: 0.5 },
+    far: { cx: 0, cy: 1.2, z: 9, radius: 2.6, count: 3, speed: 0.9, score: ScoreTier.high, tr: 0.7 },
   },
 
-  /** 回転オービット塔: 中央の柱の周りを水平カルーセルで周回(手前↔奥)。柱の裏は隠れる。 */
+  /** 回転オービット塔: 中央の柱の周りを水平カルーセルで周回(手前↔奥)。柱は細め。 */
   orbit: {
-    pillar: { x: 0, y: 0.4, z: 10, radius: 1.4 },
+    pillar: { x: 0, y: 0.4, z: 9, radius: 1.1 },
     rings: [
-      { z: 10, r: 3.6, count: 5, speed: 0.9, score: ScoreTier.mid, tr: 0.6, cy: 0.3 },
-      { z: 10, r: 2.4, count: 4, speed: 1.4, score: ScoreTier.high, tr: 0.42, cy: 1.6 },
+      { z: 9, r: 3.0, count: 6, speed: 0.8, score: ScoreTier.mid, tr: 0.78, cy: 0.2 },
+      { z: 9, r: 1.9, count: 4, speed: 1.1, score: ScoreTier.high, tr: 0.6, cy: 1.5 },
     ],
   },
 
-  /** カーブ迫りコース: 障害物の裏をカーブで狙う。 */
+  /** カーブ迫りコース: 障害物の裏をカーブで狙う。障害物は小さめ・的は大きめ。 */
   curve: {
     obstacles: [
-      { x: -1.4, y: 0.2, z: 8, radius: 1.3 },
-      { x: 1.8, y: 0.7, z: 9, radius: 1.3 },
+      { x: -1.3, y: 0.1, z: 7.5, radius: 1.0 },
+      { x: 1.7, y: 0.6, z: 8.5, radius: 1.0 },
     ],
     targets: [
-      { x: -3.2, y: 0.5, z: 10, score: ScoreTier.high },
-      { x: 3.3, y: 0.9, z: 11, score: ScoreTier.high },
-      { x: 0, y: -0.5, z: 6.5, score: ScoreTier.mid },
+      { x: -3.0, y: 0.5, z: 9, score: ScoreTier.high },
+      { x: 3.1, y: 0.9, z: 9.5, score: ScoreTier.high },
+      { x: 0, y: -0.4, z: 6, score: ScoreTier.mid },
+      { x: -1.0, y: 1.6, z: 10, score: ScoreTier.top },
+      { x: 2.0, y: -0.2, z: 7, score: ScoreTier.mid },
     ],
-    respawn: 1.0,
-    tr: 0.7,
+    respawn: 0.7,
+    tr: 0.85,
   },
 
-  /** 立体モグラ叩き: 奥行き3段の穴から上下に出没。 */
+  /** 立体モグラ叩き: 奥行き3段の穴から上下に出没。出現多め・長め=当てやすい。 */
   mole: {
     cols: [-2.7, 0, 2.7],
     rows: [
-      { yDown: -1.6, yUp: -0.5, z: 6, score: ScoreTier.low },
-      { yDown: -1.4, yUp: 0.4, z: 9, score: ScoreTier.mid },
-      { yDown: -1.2, yUp: 1.3, z: 12.5, score: ScoreTier.high },
+      { yDown: -1.6, yUp: -0.4, z: 5.5, score: ScoreTier.low },
+      { yDown: -1.4, yUp: 0.5, z: 8, score: ScoreTier.mid },
+      { yDown: -1.2, yUp: 1.4, z: 10.5, score: ScoreTier.high },
     ],
-    riseSec: 0.22,
-    holdSec: 1.3,
-    sinkSec: 0.22,
-    gapSec: 0.5,
-    active: 5,
-    tr: 0.7,
+    riseSec: 0.2,
+    holdSec: 1.7,
+    sinkSec: 0.2,
+    gapSec: 0.3,
+    active: 6,
+    tr: 0.85,
   },
 
   /**
@@ -155,12 +156,12 @@ export const StagesConfig = {
   tiers: {
     floorY: -2.2,
     steps: [
-      { y: -1.4, zNear: 5, zFar: 6.6, halfWidth: 5.0, count: 3, speed: 2.4, tr: 0.7, score: ScoreTier.low },
-      { y: -0.3, zNear: 7.2, zFar: 8.8, halfWidth: 4.6, count: 3, speed: 3.0, tr: 0.6, score: ScoreTier.mid },
-      { y: 0.9, zNear: 9.6, zFar: 11.2, halfWidth: 4.2, count: 2, speed: 3.6, tr: 0.5, score: ScoreTier.high },
-      { y: 2.2, zNear: 12.2, zFar: 13.8, halfWidth: 3.6, count: 1, speed: 4.2, tr: 0.45, score: ScoreTier.top },
+      { y: -1.4, zNear: 5, zFar: 6.6, halfWidth: 5.0, count: 4, speed: 2.0, tr: 0.85, score: ScoreTier.low },
+      { y: -0.2, zNear: 7.0, zFar: 8.6, halfWidth: 4.6, count: 3, speed: 2.6, tr: 0.72, score: ScoreTier.mid },
+      { y: 1.0, zNear: 9.2, zFar: 10.8, halfWidth: 4.2, count: 3, speed: 3.0, tr: 0.6, score: ScoreTier.high },
+      { y: 2.2, zNear: 11.5, zFar: 13.0, halfWidth: 3.6, count: 2, speed: 3.4, tr: 0.52, score: ScoreTier.top },
     ],
-    respawn: 0.6,
+    respawn: 0.4,
   },
 } as const;
 
@@ -198,12 +199,12 @@ export const WorldConfig = {
   /** 投擲の発射元 (カメラ少し下=手元のイメージ)。 */
   muzzle: { x: 0, y: -0.5, z: 0.3 },
   /** ボールのワールド半径。 */
-  ballRadius: 0.3,
+  ballRadius: 0.34,
   ballColor: '#00e5ff',
   /** 軌跡 (Trail) の生存時間 (秒)。外した方向を線として残す。 */
   trailLifeSec: 0.12,
-  /** 当たり判定の倍率 (ガバガバ判定)。 */
-  hitboxMultiplier: 1.4,
+  /** 当たり判定の倍率 (ガバガバ判定。大きいほど当てやすい)。 */
+  hitboxMultiplier: 2.0,
   /** 床の高さ。これより下に落ちたら消す。 */
   floorY: -4,
   /** これより奥(z)へ行ったら消す (的の後ろを通過)。 */
@@ -349,7 +350,11 @@ export const TemplatesConfig = {
 
 export const ScoreConfig = {
   /** 連続命中の表示リセットまでの猶予 (秒)。 */
-  comboWindowSec: 2,
+  comboWindowSec: 2.5,
+  /** コンボ倍率: comboStep ヒットごとに +comboBonus、上限 comboMax 倍。 */
+  comboStep: 4,
+  comboBonus: 0.5,
+  comboMax: 4,
 } as const;
 
 export const FeedbackConfig = {

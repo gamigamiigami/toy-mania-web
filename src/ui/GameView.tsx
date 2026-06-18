@@ -26,6 +26,9 @@ export function GameView() {
   const [connected, setConnected] = useState<boolean[]>(() =>
     PlayerConfig.colors.map(() => false),
   );
+  const [combos, setCombos] = useState<number[]>(() =>
+    PlayerConfig.colors.map(() => 0),
+  );
   const [timeLeft, setTimeLeft] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const [qr, setQr] = useState('');
@@ -52,6 +55,12 @@ export function GameView() {
         return next;
       });
     engine.onTime = setTimeLeft;
+    engine.onCombo = (id, c) =>
+      setCombos((arr) => {
+        const next = [...arr];
+        next[id] = c;
+        return next;
+      });
     engine.onRoundStart = () => setMatchPhase('playing');
     engine.onStage = (label) => {
       setStageLabel(label);
@@ -167,6 +176,9 @@ export function GameView() {
                       style={{ color: PlayerConfig.colors[id] }}
                     >
                       {PlayerConfig.names[id]} {scores[id]}
+                      {combos[id] >= 2 && (
+                        <em className="combo">🔥{combos[id]}</em>
+                      )}
                     </span>
                   ) : null,
                 )}

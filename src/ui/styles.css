@@ -108,6 +108,13 @@ body {
   font-size: clamp(18px, 2.6vw, 34px);
 }
 
+.vs-hud .combo {
+  font-style: normal;
+  font-size: 0.62em;
+  margin-left: 6px;
+  color: #ffd60a;
+}
+
 .hint-small {
   color: #9aa3ad;
   font-size: 12px;
