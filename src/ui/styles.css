@@ -21,7 +21,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  perspective: 1400px;
 }
+
+/* ステージ切替: Y軸回転で横へ回り込む(ゴンドラ風)。A/B同一で交互再生。 */
+@keyframes stageSpin {
+  0% { transform: rotateY(0deg) translateX(0); opacity: 1; }
+  45% { transform: rotateY(85deg) translateX(35%) scale(0.92); opacity: 0.25; }
+  55% { transform: rotateY(-85deg) translateX(-35%) scale(0.92); opacity: 0.25; }
+  100% { transform: rotateY(0deg) translateX(0); opacity: 1; }
+}
+.stage.spin-a { animation: stageSpin 0.7s ease-in-out; }
+.stage.spin-b { animation: stageSpin 0.7s ease-in-out; }
 
 .stage {
   position: relative;
@@ -149,6 +160,36 @@ body {
   display: flex;
   gap: 18px;
   font-weight: 800;
+}
+
+.settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.settings .set-label {
+  color: #cfe8ff;
+  font-weight: 700;
+}
+
+.settings .dur {
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #cfe8ff;
+  background: rgba(20, 40, 70, 0.7);
+  border: 1px solid rgba(120, 180, 255, 0.4);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.settings .dur.active {
+  color: #001018;
+  background: #00e5ff;
+  border-color: #00e5ff;
 }
 
 .result-panel {

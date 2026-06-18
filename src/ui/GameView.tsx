@@ -32,6 +32,12 @@ export function GameView() {
   const [qr, setQr] = useState('');
   const [room, setRoom] = useState('');
   const [stageLabel, setStageLabel] = useState('');
+  const [durationSec, setDurationSec] = useState(30);
+  const [spin, setSpin] = useState<'' | 'a' | 'b'>('');
+  const spinToggle = useRef(false);
+  const firstStage = useRef(true);
+
+  const DURATIONS = [15, 30, 45, 60];
 
   useEffect(() => {
     return () => {
@@ -57,7 +63,16 @@ export function GameView() {
       setMatchPhase('result');
     };
     engine.onWaiting = () => setMatchPhase('waiting');
-    engine.onStage = setStageLabel;
+    engine.onStage = (label) => {
+      setStageLabel(label);
+      if (firstStage.current) {
+        firstStage.current = false;
+        return;
+      }
+      // ステージ切替の回転トランジション (A/B交互で再生し直す)。
+      setSpin(spinToggle.current ? 'a' : 'b');
+      spinToggle.current = !spinToggle.current;
+    };
     engine.onPlayerConnected = (id) =>
       setConnected((arr) => {
         const next = [...arr];
@@ -118,6 +133,10 @@ export function GameView() {
 
   const startMatch = () => engineRef.current?.startMatch();
   const selectStage = (i: number) => engineRef.current?.selectStage(i);
+  const changeDuration = (sec: number) => {
+    setDurationSec(sec);
+    engineRef.current?.setDuration(sec);
+  };
 
   // テストプレイ用: 数字キー 1-4 でステージ即切替。
   useEffect(() => {
@@ -142,9 +161,12 @@ export function GameView() {
 
   const canStart = isPhone ? connected.some((c) => c) : true;
 
+  const stageCls =
+    spin === 'a' ? 'stage spin-a' : spin === 'b' ? 'stage spin-b' : 'stage';
+
   return (
     <div className="game-root">
-      <div className="stage">
+      <div className={stageCls} onAnimationEnd={() => setSpin('')}>
         <video ref={videoRef} playsInline muted className="hidden-video" />
         <canvas ref={canvasRef} className="game-canvas" />
 
@@ -200,12 +222,24 @@ export function GameView() {
                     </div>
                   </>
                 )}
+                <div className="settings">
+                  <span className="set-label">⏱ 時間</span>
+                  {DURATIONS.map((d) => (
+                    <button
+                      key={d}
+                      className={d === durationSec ? 'dur active' : 'dur'}
+                      onClick={() => changeDuration(d)}
+                    >
+                      {d}秒
+                    </button>
+                  ))}
+                </div>
                 <button
                   className="start-btn"
                   onClick={startMatch}
                   disabled={!canStart}
                 >
-                  ▶ スタート（30秒）
+                  ▶ スタート（{durationSec}秒）
                 </button>
                 {isPhone && !canStart && (
                   <p className="hint-small">スマホが1台つながると開始できます</p>

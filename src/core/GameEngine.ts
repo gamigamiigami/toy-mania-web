@@ -44,7 +44,8 @@ export class GameEngine {
   private lastTime = 0;
   private running = false;
   private phase: Phase = 'waiting';
-  private timeLeft = RoundConfig.durationSec;
+  private roundDuration: number = RoundConfig.durationSec;
+  private timeLeft: number = RoundConfig.durationSec;
   private resultLeft = 0;
 
   /** UI への通知。 */
@@ -156,10 +157,10 @@ export class GameEngine {
     for (const p of this.players) p.reset();
     this.template = createTemplate(this.templateName);
     this.projectiles.clear();
-    this.timeLeft = RoundConfig.durationSec;
+    this.timeLeft = this.roundDuration;
     this.phase = 'playing';
     this.players.forEach((p) => this.onScoreChange(p.id, 0));
-    this.onTime(RoundConfig.durationSec);
+    this.onTime(this.roundDuration);
     this.onRoundStart();
   }
 
@@ -176,6 +177,15 @@ export class GameEngine {
     return this.stageIndex;
   }
 
+  /** ラウンド時間(秒)を変更する (設定画面から)。 */
+  setDuration(sec: number): void {
+    this.roundDuration = sec;
+    if (this.phase !== 'playing') {
+      this.timeLeft = sec;
+      this.onTime(sec);
+    }
+  }
+
   private enterWaiting(): void {
     this.phase = 'waiting';
     // 次のステージへローテーション。
@@ -185,7 +195,7 @@ export class GameEngine {
     this.template = createTemplate(this.templateName);
     this.projectiles.clear();
     this.players.forEach((p) => this.onScoreChange(p.id, 0));
-    this.onTime(RoundConfig.durationSec);
+    this.onTime(this.roundDuration);
     this.onStage(STAGE_INFO[this.stageIndex].label);
     this.onWaiting();
   }
