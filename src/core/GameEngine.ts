@@ -19,7 +19,7 @@ import { ProjectileSystem } from '../weapon/ProjectileSystem';
 import { Renderer } from '../ui/Renderer';
 
 export type InputMode = 'camera' | 'remote';
-export type Phase = 'waiting' | 'playing' | 'result';
+export type Phase = 'waiting' | 'playing';
 
 /**
  * GameEngine
@@ -46,7 +46,6 @@ export class GameEngine {
   private phase: Phase = 'waiting';
   private roundDuration: number = RoundConfig.durationSec;
   private timeLeft: number = RoundConfig.durationSec;
-  private resultLeft = 0;
 
   /** UI への通知。 */
   onScoreChange: (playerId: number, score: number) => void = () => {};
@@ -186,18 +185,16 @@ export class GameEngine {
     }
   }
 
-  private enterWaiting(): void {
-    this.phase = 'waiting';
-    // 次のステージへローテーション。
+  /** 次ステージへ移動 (ゲームは止めず、スコアは累積)。 */
+  private advanceStage(): void {
     this.stageIndex = (this.stageIndex + 1) % STAGE_INFO.length;
     this.templateName = STAGE_INFO[this.stageIndex].name as TemplateName;
-    for (const p of this.players) p.reset();
     this.template = createTemplate(this.templateName);
     this.projectiles.clear();
-    this.players.forEach((p) => this.onScoreChange(p.id, 0));
+    this.timeLeft = this.roundDuration;
+    this.sound.roundEnd();
     this.onTime(this.roundDuration);
     this.onStage(STAGE_INFO[this.stageIndex].label);
-    this.onWaiting();
   }
 
   /** ゲーム本体の進行 (待機中も warmup として動かす)。 */
@@ -240,23 +237,12 @@ export class GameEngine {
 
     this.updateAim(dt, now); // 照準は常時更新
     this.feedback.update(dt);
-
-    if (this.phase !== 'result') {
-      this.runGameplay(dt, now); // 待機中(warmup)とプレイ中に進行
-    }
+    this.runGameplay(dt, now); // 移動中もゲームは止めない(乗り物に乗りながら)
 
     if (this.phase === 'playing') {
       this.timeLeft -= dt;
       this.onTime(Math.max(0, Math.ceil(this.timeLeft)));
-      if (this.timeLeft <= 0) {
-        this.phase = 'result';
-        this.resultLeft = RoundConfig.resultSec;
-        this.sound.roundEnd();
-        this.onRoundOver(this.players.map((p) => p.score.getScore()));
-      }
-    } else if (this.phase === 'result') {
-      this.resultLeft -= dt;
-      if (this.resultLeft <= 0) this.enterWaiting();
+      if (this.timeLeft <= 0) this.advanceStage(); // 次ステージへゆっくり移動
     }
 
     this.renderer.render(

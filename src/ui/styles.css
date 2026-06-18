@@ -24,15 +24,19 @@ body {
   perspective: 1400px;
 }
 
-/* ステージ切替: Y軸回転で横へ回り込む(ゴンドラ風)。A/B同一で交互再生。 */
-@keyframes stageSpin {
-  0% { transform: rotateY(0deg) translateX(0); opacity: 1; }
-  45% { transform: rotateY(85deg) translateX(35%) scale(0.92); opacity: 0.25; }
-  55% { transform: rotateY(-85deg) translateX(-35%) scale(0.92); opacity: 0.25; }
-  100% { transform: rotateY(0deg) translateX(0); opacity: 1; }
+/* ステージ移動: 次ステージへゆっくり横移動(ゴンドラが回り込んで到着)。
+   ゲームは止めない。長さは inline の animation-duration で可変。 */
+@keyframes stageSlide {
+  0% { transform: translateX(88%) rotateY(-30deg) scale(0.85); opacity: 0.4; }
+  60% { transform: translateX(-6%) rotateY(6deg) scale(1.01); opacity: 1; }
+  100% { transform: translateX(0) rotateY(0) scale(1); opacity: 1; }
 }
-.stage.spin-a { animation: stageSpin 0.7s ease-in-out; }
-.stage.spin-b { animation: stageSpin 0.7s ease-in-out; }
+.stage.spin-a,
+.stage.spin-b {
+  animation-name: stageSlide;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation-fill-mode: both;
+}
 
 .stage {
   position: relative;
@@ -164,32 +168,31 @@ body {
 
 .settings {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
+  align-items: stretch;
 }
 
-.settings .set-label {
+.settings .set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   color: #cfe8ff;
   font-weight: 700;
-}
-
-.settings .dur {
-  padding: 6px 12px;
   font-size: 14px;
-  font-weight: 700;
-  color: #cfe8ff;
-  background: rgba(20, 40, 70, 0.7);
-  border: 1px solid rgba(120, 180, 255, 0.4);
-  border-radius: 999px;
-  cursor: pointer;
 }
 
-.settings .dur.active {
+.settings .set-row input {
+  width: 88px;
+  padding: 6px 10px;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: right;
   color: #001018;
-  background: #00e5ff;
-  border-color: #00e5ff;
+  background: #cfe8ff;
+  border: none;
+  border-radius: 8px;
 }
 
 .result-panel {

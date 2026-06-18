@@ -5,7 +5,7 @@ import { GameEngine } from '../core/GameEngine';
 import { RemoteHost } from '../net/RemoteHost';
 
 type Phase = 'idle' | 'loading' | 'playing' | 'error';
-type MatchPhase = 'waiting' | 'playing' | 'result';
+type MatchPhase = 'waiting' | 'playing';
 
 /**
  * GameView (画面側)
@@ -27,17 +27,15 @@ export function GameView() {
     PlayerConfig.colors.map(() => false),
   );
   const [timeLeft, setTimeLeft] = useState(0);
-  const [result, setResult] = useState<number[] | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [qr, setQr] = useState('');
   const [room, setRoom] = useState('');
   const [stageLabel, setStageLabel] = useState('');
   const [durationSec, setDurationSec] = useState(30);
+  const [transitionSec, setTransitionSec] = useState(2.5);
   const [spin, setSpin] = useState<'' | 'a' | 'b'>('');
   const spinToggle = useRef(false);
   const firstStage = useRef(true);
-
-  const DURATIONS = [15, 30, 45, 60];
 
   useEffect(() => {
     return () => {
@@ -54,22 +52,14 @@ export function GameView() {
         return next;
       });
     engine.onTime = setTimeLeft;
-    engine.onRoundStart = () => {
-      setResult(null);
-      setMatchPhase('playing');
-    };
-    engine.onRoundOver = (sc) => {
-      setResult(sc);
-      setMatchPhase('result');
-    };
-    engine.onWaiting = () => setMatchPhase('waiting');
+    engine.onRoundStart = () => setMatchPhase('playing');
     engine.onStage = (label) => {
       setStageLabel(label);
       if (firstStage.current) {
         firstStage.current = false;
         return;
       }
-      // ステージ切替の回転トランジション (A/B交互で再生し直す)。
+      // ステージ移動のトランジション (A/B交互で再生し直す)。
       setSpin(spinToggle.current ? 'a' : 'b');
       spinToggle.current = !spinToggle.current;
     };
@@ -134,8 +124,9 @@ export function GameView() {
   const startMatch = () => engineRef.current?.startMatch();
   const selectStage = (i: number) => engineRef.current?.selectStage(i);
   const changeDuration = (sec: number) => {
-    setDurationSec(sec);
-    engineRef.current?.setDuration(sec);
+    const v = Math.max(3, Math.round(sec) || 0);
+    setDurationSec(v);
+    engineRef.current?.setDuration(v);
   };
 
   // テストプレイ用: 数字キー 1-4 でステージ即切替。
@@ -149,16 +140,6 @@ export function GameView() {
   }, []);
 
   const ids = PlayerConfig.names.map((_, i) => i);
-
-  const winnerText = (sc: number[]): string => {
-    const conn = ids.filter((id) => connected[id]);
-    if (conn.length <= 1) return `スコア ${sc[conn[0] ?? 0] ?? 0}`;
-    const max = Math.max(...conn.map((id) => sc[id] ?? 0));
-    const winners = conn.filter((id) => (sc[id] ?? 0) === max);
-    if (winners.length > 1) return '引き分け！';
-    return `${PlayerConfig.names[winners[0]]} の勝ち！`;
-  };
-
   const canStart = isPhone ? connected.some((c) => c) : true;
 
   const stageCls =
@@ -166,7 +147,11 @@ export function GameView() {
 
   return (
     <div className="game-root">
-      <div className={stageCls} onAnimationEnd={() => setSpin('')}>
+      <div
+        className={stageCls}
+        style={{ animationDuration: `${transitionSec}s` }}
+        onAnimationEnd={() => setSpin('')}
+      >
         <video ref={videoRef} playsInline muted className="hidden-video" />
         <canvas ref={canvasRef} className="game-canvas" />
 
@@ -223,44 +208,38 @@ export function GameView() {
                   </>
                 )}
                 <div className="settings">
-                  <span className="set-label">⏱ 時間</span>
-                  {DURATIONS.map((d) => (
-                    <button
-                      key={d}
-                      className={d === durationSec ? 'dur active' : 'dur'}
-                      onClick={() => changeDuration(d)}
-                    >
-                      {d}秒
-                    </button>
-                  ))}
+                  <label className="set-row">
+                    <span>1ステージの時間(秒)</span>
+                    <input
+                      type="number"
+                      min={3}
+                      value={durationSec}
+                      onChange={(e) => changeDuration(Number(e.target.value))}
+                    />
+                  </label>
+                  <label className="set-row">
+                    <span>切替の長さ(秒)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      value={transitionSec}
+                      onChange={(e) =>
+                        setTransitionSec(Math.max(0, Number(e.target.value) || 0))
+                      }
+                    />
+                  </label>
                 </div>
                 <button
                   className="start-btn"
                   onClick={startMatch}
                   disabled={!canStart}
                 >
-                  ▶ スタート（{durationSec}秒）
+                  ▶ スタート（{durationSec}秒で巡回）
                 </button>
                 {isPhone && !canStart && (
                   <p className="hint-small">スマホが1台つながると開始できます</p>
                 )}
-              </div>
-            )}
-
-            {matchPhase === 'result' && result && (
-              <div className="result-panel">
-                <h1>TIME UP!</h1>
-                <div className="result-scores">
-                  {ids.map((id) =>
-                    connected[id] ? (
-                      <span key={id} style={{ color: PlayerConfig.colors[id] }}>
-                        {PlayerConfig.names[id]}: {result[id]}
-                      </span>
-                    ) : null,
-                  )}
-                </div>
-                <p className="winner">{winnerText(result)}</p>
-                <p className="next">まもなく待機画面へ…</p>
               </div>
             )}
           </>
