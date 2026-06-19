@@ -203,8 +203,8 @@ export const WorldConfig = {
   ballColor: '#00e5ff',
   /** 軌跡 (Trail) の生存時間 (秒)。外した方向を線として残す。 */
   trailLifeSec: 0.12,
-  /** 当たり判定の倍率 (見た目に近いシビア判定)。 */
-  hitboxMultiplier: 1.15,
+  /** 当たり判定の倍率 (見た目ぴったり〜やや厳しめ)。 */
+  hitboxMultiplier: 0.9,
   /** 床の高さ。これより下に落ちたら消す。 */
   floorY: -4,
   /** これより奥(z)へ行ったら消す (的の後ろを通過)。 */
