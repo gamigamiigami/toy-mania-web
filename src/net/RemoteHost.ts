@@ -31,6 +31,13 @@ export class RemoteHost {
       this.id = id;
       this.onReady();
     });
+    this.peer.on('disconnected', () => {
+      try {
+        this.peer.reconnect(); // ブローカから切れても登録を維持
+      } catch {
+        /* noop */
+      }
+    });
     this.peer.on('error', (e: { type?: string }) => {
       this.onError(e?.type ?? 'error');
     });

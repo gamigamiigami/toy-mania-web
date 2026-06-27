@@ -31,13 +31,17 @@ export function ControllerView({ room }: { room: string }) {
   const [shots, setShots] = useState(0);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [me, setMe] = useState<{ name: string; color: string } | null>(null);
+  const [errMsg, setErrMsg] = useState('');
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const c = new RemoteController(room);
-    c.onOpen = () => setStatus('ready');
+    c.onOpen = () => {
+      setStatus('ready');
+      setErrMsg('');
+    };
     c.onClosed = () => setStatus('closed');
-    c.onError = () => setStatus('closed');
+    c.onError = (m) => setErrMsg(m);
     c.onAssign = (_p, color, name) => setMe({ name, color });
     ctrlRef.current = c;
     return () => c.dispose();
@@ -135,6 +139,7 @@ export function ControllerView({ room }: { room: string }) {
             {status === 'closed' && '切断されました'}
           </p>
         )}
+        {errMsg && <p className="error">通信: {errMsg}</p>}
       </div>
 
       {!active ? (
