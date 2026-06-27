@@ -490,6 +490,21 @@ body {
   gap: 16px;
 }
 
+.perm-help {
+  max-width: 320px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.perm-help b {
+  color: #ffd60a;
+}
+
 .ctrl-actions .shots {
   font-weight: 900;
   font-size: 18px;

@@ -32,6 +32,7 @@ export function ControllerView({ room }: { room: string }) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [me, setMe] = useState<{ name: string; color: string } | null>(null);
   const [errMsg, setErrMsg] = useState('');
+  const [permDenied, setPermDenied] = useState(false);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -71,13 +72,16 @@ export function ControllerView({ room }: { room: string }) {
       try {
         const res = await DOE.requestPermission();
         if (res !== 'granted') {
-          alert('センサーの使用を許可してください');
+          setPermDenied(true);
           return;
         }
       } catch {
-        /* 未対応ブラウザは無視 */
+        // ダイアログを出せない(設定オフ等)。手順を表示。
+        setPermDenied(true);
+        return;
       }
     }
+    setPermDenied(false);
     neutral.current = null;
     setActive(true);
   };
@@ -144,10 +148,23 @@ export function ControllerView({ room }: { room: string }) {
 
       {!active ? (
         <div className="ctrl-center">
-          <p>スマホを画面に向けて開始してね</p>
+          <p>スマホを傾けて狙うので、センサー（ジャイロ）の使用許可が必要です。</p>
           <button className="ctrl-btn" onClick={start} disabled={status !== 'ready'}>
-            ▶ 開始（センサー許可）
+            ▶ 開始（センサーを許可）
           </button>
+          {permDenied && (
+            <div className="perm-help">
+              <p className="error">センサーが許可されませんでした。</p>
+              <p>
+                iPhoneの場合: <b>設定 → Safari → モーションとジャイロのアクセス</b>{' '}
+                を ON にして、もう一度「開始」を押してください。
+              </p>
+              <p>許可ダイアログが出たら「許可 / Allow」を選んでください。</p>
+              <button className="ctrl-btn small" onClick={start}>
+                もう一度ためす
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <>
