@@ -1,41 +1,45 @@
 import { Peer, type DataConnection } from 'peerjs';
 import { PlayerConfig } from '../config/GameConfig';
-import {
-  makeRoomCode,
-  peerIdForRoom,
-  type AssignMessage,
-  type ControllerMessage,
-} from './messages';
+import { type AssignMessage, type ControllerMessage } from './messages';
 
 /**
  * RemoteHost
- * 責務: 画面(ホスト)側のWebRTC接続。1ルームに最大2台のスマホを受け入れ、
- *       接続順にプレイヤー番号(0/1)を割り当てて照準・発射を受け取る。
- *       PeerJSの無料公開ブローカで仲介(サーバー不要)。
+ * 責務: 画面(ホスト)側のWebRTC接続。PeerJSの無料公開ブローカで仲介(サーバー不要)。
+ *       ID衝突を避けるためランダムIDを採用し、open後に接続URLを通知する。
+ *       最大2台→4台のスマホを接続順にプレイヤー番号へ割り当てる。
  */
 export class RemoteHost {
-  readonly code: string;
   private peer: Peer;
   private conns: (DataConnection | null)[] = Array.from(
     { length: PlayerConfig.maxPlayers },
     () => null,
   );
+  /** PeerJSが割り当てたID (= room)。open まで空。 */
+  id = '';
 
+  /** 接続準備完了 (ID確定)。 */
+  onReady: () => void = () => {};
   onConnected: (playerId: number) => void = () => {};
   onAim: (playerId: number, x: number, y: number) => void = () => {};
   onFire: (playerId: number, curve: number) => void = () => {};
   onClosed: (playerId: number) => void = () => {};
+  onError: (message: string) => void = () => {};
 
   constructor() {
-    this.code = makeRoomCode();
-    this.peer = new Peer(peerIdForRoom(this.code));
+    this.peer = new Peer();
+    this.peer.on('open', (id) => {
+      this.id = id;
+      this.onReady();
+    });
+    this.peer.on('error', (e: { type?: string }) => {
+      this.onError(e?.type ?? 'error');
+    });
     this.peer.on('connection', (conn) => this.accept(conn));
   }
 
   private accept(conn: DataConnection): void {
     const id = this.conns.findIndex((c) => c === null);
     if (id < 0) {
-      // 満員。
       conn.on('open', () => conn.close());
       return;
     }
@@ -62,10 +66,15 @@ export class RemoteHost {
     });
   }
 
-  /** コントローラ用URL (このページに ?role=controller&room=CODE を付与)。 */
+  /** 短い表示用コード (IDの末尾)。 */
+  roomLabel(): string {
+    return this.id.slice(-4).toUpperCase();
+  }
+
+  /** コントローラ用URL (?role=controller&room=<peerId>)。 */
   controllerUrl(): string {
     const base = `${location.origin}${import.meta.env.BASE_URL}`;
-    return `${base}?role=controller&room=${this.code}`;
+    return `${base}?role=controller&room=${encodeURIComponent(this.id)}`;
   }
 
   dispose(): void {

@@ -33,6 +33,7 @@ export function GameView() {
   const [errorMsg, setErrorMsg] = useState('');
   const [qr, setQr] = useState('');
   const [room, setRoom] = useState('');
+  const [netError, setNetError] = useState('');
   const [stageLabel, setStageLabel] = useState('');
   const [durationSec, setDurationSec] = useState(30);
   const [transitionSec, setTransitionSec] = useState(2.5);
@@ -101,16 +102,21 @@ export function GameView() {
   const handlePhone = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     setIsPhone(true);
+    setNetError('');
     try {
-      const host = new RemoteHost();
-      hostRef.current = host;
-      setRoom(host.code);
-      setQr(await QRCode.toDataURL(host.controllerUrl(), { width: 220, margin: 1 }));
-
       const engine = new GameEngine(videoRef.current, canvasRef.current, 'remote');
       wireEngine(engine);
       engineRef.current = engine;
 
+      const host = new RemoteHost();
+      hostRef.current = host;
+      host.onReady = async () => {
+        setRoom(host.roomLabel());
+        setQr(await QRCode.toDataURL(host.controllerUrl(), { width: 220, margin: 1 }));
+        setNetError('');
+      };
+      host.onError = (t) =>
+        setNetError(`接続準備に失敗: ${t}。再接続を押してください`);
       host.onConnected = (id) => engine.connectPlayer(id);
       host.onAim = (id, x, y) => engine.setRemoteAim(id, x, y);
       host.onFire = (id, curve) => engine.fire(id, curve);
@@ -128,6 +134,30 @@ export function GameView() {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setPhase('error');
     }
+  };
+
+  const reconnect = () => {
+    hostRef.current?.dispose();
+    setQr('');
+    setRoom('');
+    setNetError('再接続中…');
+    const host = new RemoteHost();
+    hostRef.current = host;
+    host.onReady = async () => {
+      setRoom(host.roomLabel());
+      setQr(await QRCode.toDataURL(host.controllerUrl(), { width: 220, margin: 1 }));
+      setNetError('');
+    };
+    host.onError = (t) => setNetError(`接続準備に失敗: ${t}`);
+    host.onConnected = (id) => engineRef.current?.connectPlayer(id);
+    host.onAim = (id, x, y) => engineRef.current?.setRemoteAim(id, x, y);
+    host.onFire = (id, curve) => engineRef.current?.fire(id, curve);
+    host.onClosed = (id) =>
+      setConnected((arr) => {
+        const next = [...arr];
+        next[id] = false;
+        return next;
+      });
   };
 
   const startMatch = () => engineRef.current?.startMatch();
@@ -205,6 +235,17 @@ export function GameView() {
                 <h2>{isPhone ? 'スマホで参加 → スタート' : '準備OK？'}</h2>
                 {stageLabel && <p className="stage-name">ステージ: {stageLabel}</p>}
                 {isPhone && qr && <img className="qr" src={qr} alt="QR" />}
+                {isPhone && !qr && !netError && (
+                  <p className="hint-small">接続準備中… QRを生成しています</p>
+                )}
+                {isPhone && netError && (
+                  <>
+                    <p className="error">{netError}</p>
+                    <button className="ctrl-btn small" onClick={reconnect}>
+                      再接続
+                    </button>
+                  </>
+                )}
                 {isPhone && (
                   <>
                     <p className="room">ルーム <b>{room}</b></p>

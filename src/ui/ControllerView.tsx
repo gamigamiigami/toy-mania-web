@@ -37,6 +37,7 @@ export function ControllerView({ room }: { room: string }) {
     const c = new RemoteController(room);
     c.onOpen = () => setStatus('ready');
     c.onClosed = () => setStatus('closed');
+    c.onError = () => setStatus('closed');
     c.onAssign = (_p, color, name) => setMe({ name, color });
     ctrlRef.current = c;
     return () => c.dispose();
