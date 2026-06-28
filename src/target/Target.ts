@@ -23,8 +23,9 @@ export interface TargetOptions {
 export class Target {
   readonly position: Vec3;
   readonly type: TargetType;
-  readonly radius: number;
-  readonly scoreValue: number;
+  /** 半径・得点は「撃つほど成長する的」のため可変。 */
+  radius: number;
+  scoreValue: number;
   readonly label: string | null;
   /** 的スプライトのアイコン番号 (未指定=null)。 */
   readonly iconIndex: number | null;
@@ -54,6 +55,12 @@ export class Target {
     this.state = TargetState.Hit;
     this.flash = 0;
     return true;
+  }
+
+  /** 被弾後に再び撃てる状態へ戻す (撃つほど成長する的用)。 */
+  revive(): void {
+    this.state = TargetState.Idle;
+    this.flash = 0;
   }
 
   /** 状態の進行 (出現アニメ / 被弾フラッシュ)。寿命判定はテンプレートが行う。 */

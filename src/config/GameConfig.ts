@@ -107,9 +107,10 @@ export const StagesConfig = {
     far: { cx: 0, cy: 1.2, z: 9, radius: 2.6, count: 3, speed: 0.9, score: ScoreTier.high, tr: 0.52 },
     /** 中ポップアップが「トリガー的(青)」になる確率。撃つとボーナスが噴き出す。 */
     triggerChance: 0.3,
-    /** トリガー命中で噴き出すボーナス(1000点)の設定。 */
-    burst: { count: 6, life: 5, score: ScoreTier.top, tr: 0.42, spreadX: 4, yMin: -0.4, yMax: 2.2, z: 6.5, zSpread: 2 },
   },
+
+  /** トリガー命中で噴き出す共通ボーナス(1000点)の設定。 */
+  burst: { count: 6, life: 5, score: ScoreTier.top, tr: 0.42, spreadX: 4, yMin: -0.4, yMax: 2.2, z: 6.5, zSpread: 2 },
 
   /** 回転オービット塔: 中央の柱の周りを水平カルーセルで周回(手前↔奥)。柱は細め。 */
   orbit: {
@@ -118,6 +119,7 @@ export const StagesConfig = {
       { z: 9, r: 3.0, count: 6, speed: 0.8, score: ScoreTier.mid, tr: 0.58, cy: 0.2 },
       { z: 9, r: 1.9, count: 4, speed: 1.1, score: ScoreTier.high, tr: 0.44, cy: 1.5 },
     ],
+    triggerChance: 0.18,
   },
 
   /** カーブ迫りコース: 障害物の裏をカーブで狙う。障害物は小さめ・的は大きめ。 */
@@ -135,6 +137,8 @@ export const StagesConfig = {
     ],
     respawn: 0.7,
     tr: 0.6,
+    /** どのスロットをトリガー的にするか (撃つとボーナス噴出)。 */
+    triggerSlots: [3],
   },
 
   /** 立体モグラ叩き: 奥行き3段の穴から上下に出没。出現多め・長め=当てやすい。 */
@@ -151,6 +155,17 @@ export const StagesConfig = {
     gapSec: 0.3,
     active: 6,
     tr: 0.6,
+    triggerChance: 0.12,
+    /**
+     * 最終ステージの「撃つほど成長する的」: 撃つたび得点UP＆半径ダウン。
+     * minRadius まで小さくなるとフィニッシュ(大量得点)→respawnで再登場。
+     */
+    rising: {
+      x: 0, y: 0.7, z: 6.5,
+      startValue: 300, increment: 200,
+      startRadius: 1.0, shrink: 0.06, minRadius: 0.3,
+      respawn: 1.5,
+    },
   },
 
   /**
@@ -166,6 +181,7 @@ export const StagesConfig = {
       { y: 2.2, zNear: 11.5, zFar: 13.0, halfWidth: 3.6, count: 2, speed: 3.4, tr: 0.38, score: ScoreTier.top },
     ],
     respawn: 0.4,
+    triggerChance: 0.15,
   },
 } as const;
 

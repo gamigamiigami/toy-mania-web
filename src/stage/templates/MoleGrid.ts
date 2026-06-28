@@ -1,5 +1,7 @@
 import { StagesConfig } from '../../config/GameConfig';
+import { TargetType } from '../../core/types';
 import { Target } from '../../target/Target';
+import { BonusBurst } from './BonusBurst';
 import type { GuideSegment, StageTemplate } from '../StageTemplate';
 import { randIcon, tierType } from './util';
 
@@ -18,8 +20,9 @@ function lerp(a: number, b: number, p: number): number {
 }
 
 /**
- * MoleGrid (立体モグラ叩き)
- * 奥行き3段の穴から的が上下に出没。出ている間に当てる。奥ほど高得点。
+ * MoleGrid (立体モグラ叩き) ＝ 最終ステージ
+ * 奥行き3段の穴から的が上下に出没。トリガー的も混じる。
+ * 中央には「撃つほど得点UP＆的が小さくなる」成長ターゲットを配置。
  */
 export class MoleGrid implements StageTemplate {
   readonly displayName = '立体モグラ叩き';
@@ -28,9 +31,13 @@ export class MoleGrid implements StageTemplate {
   private moles: Mole[] = [];
   private occupied = new Set<string>();
   private pending: number[] = [];
+  private burst = new BonusBurst();
+  private rising: Target | null = null;
+  private risingTimer = 0;
 
   constructor() {
     for (let i = 0; i < M.active; i++) this.spawn();
+    this.spawnRising();
   }
 
   private key(c: number, r: number): string {
@@ -45,15 +52,27 @@ export class MoleGrid implements StageTemplate {
     if (free.length === 0) return;
     const [c, r] = free[Math.floor(Math.random() * free.length)];
     const row = M.rows[r];
+    const isTrigger = Math.random() < M.triggerChance;
     const t = new Target({
       position: { x: M.cols[c], y: row.yDown, z: row.z },
       radius: M.tr,
       scoreValue: row.score,
-      type: tierType(row.score),
+      type: isTrigger ? TargetType.Trigger : tierType(row.score),
       iconIndex: randIcon(),
     });
     this.occupied.add(this.key(c, r));
     this.moles.push({ target: t, col: c, row: r, state: 'rise', t: 0 });
+  }
+
+  private spawnRising(): void {
+    const R = M.rising;
+    this.rising = new Target({
+      position: { x: R.x, y: R.y, z: R.z },
+      radius: R.startRadius,
+      scoreValue: R.startValue,
+      type: TargetType.Bonus,
+      iconIndex: randIcon(),
+    });
   }
 
   update(dt: number): void {
@@ -73,7 +92,6 @@ export class MoleGrid implements StageTemplate {
         if (m.t >= M.sinkSec) m.target.expire();
       }
     }
-    // 退場したモグラの穴を解放し、再出現を予約。
     const alive: Mole[] = [];
     for (const m of this.moles) {
       if (m.target.isDestroyed()) {
@@ -89,11 +107,50 @@ export class MoleGrid implements StageTemplate {
         this.spawn();
       }
     }
+
+    // 成長ターゲット
+    if (this.rising) {
+      this.rising.update(dt);
+      if (this.rising.isDestroyed()) {
+        this.rising = null;
+        this.risingTimer = M.rising.respawn;
+      }
+    } else {
+      this.risingTimer -= dt;
+      if (this.risingTimer <= 0) this.spawnRising();
+    }
+
+    this.burst.update(dt);
   }
 
   getTargets(): Target[] {
-    return this.moles.map((m) => m.target).filter((t) => !t.isDestroyed());
+    const out = this.moles
+      .map((m) => m.target)
+      .filter((t) => !t.isDestroyed());
+    if (this.rising && !this.rising.isDestroyed()) out.push(this.rising);
+    out.push(...this.burst.targets());
+    return out;
   }
-  onHit(t: Target): number { return t.scoreValue; }
-  getGuides(): GuideSegment[] { return []; }
+
+  onHit(t: Target): number {
+    // 成長ターゲット: 撃つほど得点UP＆半径ダウン。最小まで縮むとフィニッシュ。
+    if (t === this.rising) {
+      const awarded = t.scoreValue;
+      const R = M.rising;
+      const next = t.radius - R.shrink;
+      if (next > R.minRadius) {
+        t.scoreValue += R.increment;
+        t.radius = next;
+        t.revive(); // まだ撃てる
+      }
+      // next <= minRadius のときは復活させない → 破壊されてrespawn
+      return awarded;
+    }
+    if (t.type === TargetType.Trigger) this.burst.spawn(t.position.x, t.position.z);
+    return t.scoreValue;
+  }
+
+  getGuides(): GuideSegment[] {
+    return [];
+  }
 }

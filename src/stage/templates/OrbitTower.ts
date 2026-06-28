@@ -1,6 +1,7 @@
 import { StagesConfig } from '../../config/GameConfig';
-import type { Obstacle } from '../../core/types';
+import { TargetType, type Obstacle } from '../../core/types';
 import { Target } from '../../target/Target';
+import { BonusBurst } from './BonusBurst';
 import type { GuideSegment, StageTemplate } from '../StageTemplate';
 import { randIcon, tierType } from './util';
 
@@ -16,6 +17,7 @@ export class OrbitTower implements StageTemplate {
   readonly backgroundKey = 'farm';
 
   private rings: Target[][] = [];
+  private burst = new BonusBurst();
 
   constructor() {
     this.rings = O.rings.map((ring) => {
@@ -28,11 +30,12 @@ export class OrbitTower implements StageTemplate {
   }
 
   private make(ring: (typeof O.rings)[number], angle: number): Target {
+    const isTrigger = Math.random() < O.triggerChance;
     const t = new Target({
       position: { x: 0, y: ring.cy, z: ring.z },
       radius: ring.tr,
       scoreValue: ring.score,
-      type: tierType(ring.score),
+      type: isTrigger ? TargetType.Trigger : tierType(ring.score),
       iconIndex: randIcon(),
     });
     t.phase = angle;
@@ -58,14 +61,19 @@ export class OrbitTower implements StageTemplate {
         }
       }
     });
+    this.burst.update(dt);
   }
 
   getTargets(): Target[] {
     const out: Target[] = [];
     for (const arr of this.rings) for (const t of arr) if (!t.isDestroyed()) out.push(t);
+    out.push(...this.burst.targets());
     return out;
   }
-  onHit(t: Target): number { return t.scoreValue; }
+  onHit(t: Target): number {
+    if (t.type === TargetType.Trigger) this.burst.spawn(t.position.x, t.position.z);
+    return t.scoreValue;
+  }
   getGuides(): GuideSegment[] { return []; }
   getObstacles(): Obstacle[] {
     return [{ ...O.pillar }];

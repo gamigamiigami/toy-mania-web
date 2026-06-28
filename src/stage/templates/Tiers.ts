@@ -1,6 +1,8 @@
 import { StagesConfig } from '../../config/GameConfig';
+import { TargetType } from '../../core/types';
 import type { SceneProp } from '../Scene';
 import { Target } from '../../target/Target';
+import { BonusBurst } from './BonusBurst';
 import type { GuideSegment, StageTemplate } from '../StageTemplate';
 import { randIcon, tierType } from './util';
 
@@ -18,6 +20,7 @@ export class Tiers implements StageTemplate {
   /** step index ごとの的配列。 */
   private rows: Target[][] = [];
   private pending: { step: number; timer: number }[] = [];
+  private burst = new BonusBurst();
 
   constructor() {
     this.rows = T.steps.map((step, si) => {
@@ -30,11 +33,12 @@ export class Tiers implements StageTemplate {
   private make(si: number): Target {
     const s = T.steps[si];
     const z = (s.zNear + s.zFar) / 2;
+    const isTrigger = Math.random() < T.triggerChance;
     const t = new Target({
       position: { x: (Math.random() * 2 - 1) * (s.halfWidth - s.tr), y: s.y + s.tr, z },
       radius: s.tr,
       scoreValue: s.score,
-      type: tierType(s.score),
+      type: isTrigger ? TargetType.Trigger : tierType(s.score),
       iconIndex: randIcon(),
     });
     t.vx = s.speed * (Math.random() < 0.5 ? -1 : 1);
@@ -65,14 +69,19 @@ export class Tiers implements StageTemplate {
         this.rows[p.step].push(this.make(p.step));
       }
     }
+    this.burst.update(dt);
   }
 
   getTargets(): Target[] {
     const out: Target[] = [];
     for (const arr of this.rows) for (const t of arr) if (!t.isDestroyed()) out.push(t);
+    out.push(...this.burst.targets());
     return out;
   }
-  onHit(t: Target): number { return t.scoreValue; }
+  onHit(t: Target): number {
+    if (t.type === TargetType.Trigger) this.burst.spawn(t.position.x, t.position.z);
+    return t.scoreValue;
+  }
   getGuides(): GuideSegment[] { return []; }
 
   getProps(): SceneProp[] {

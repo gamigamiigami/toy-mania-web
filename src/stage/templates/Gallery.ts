@@ -1,6 +1,7 @@
 import { ArenaConfig, StagesConfig } from '../../config/GameConfig';
 import { TargetType } from '../../core/types';
 import { Target } from '../../target/Target';
+import { BonusBurst } from './BonusBurst';
 import type { GuideSegment, StageTemplate } from '../StageTemplate';
 import { randIcon, tierType } from './util';
 
@@ -19,8 +20,7 @@ export class Gallery implements StageTemplate {
   private holes: { target: Target | null; timer: number }[];
   private far: Target[] = [];
   private farPending: number[] = [];
-  /** トリガー命中で噴き出すボーナス的。 */
-  private bonus: Target[] = [];
+  private burst = new BonusBurst();
 
   constructor() {
     for (let i = 0; i < G.near.count; i++) this.near.push(this.makeNear());
@@ -102,36 +102,7 @@ export class Gallery implements StageTemplate {
       this.far.push(this.makeFar(Math.random() * Math.PI * 2)),
     );
 
-    // ボーナス(噴き出し): 寿命で消える。
-    for (const b of this.bonus) {
-      b.update(dt);
-      if (b.isIdle()) {
-        b.life -= dt;
-        if (b.life <= 0) b.expire();
-      }
-    }
-    this.bonus = this.bonus.filter((b) => !b.isDestroyed());
-  }
-
-  /** トリガー命中でボーナスを噴き出す。 */
-  private spawnBurst(): void {
-    const b = G.burst;
-    for (let i = 0; i < b.count; i++) {
-      this.bonus.push(
-        new Target({
-          position: {
-            x: (Math.random() * 2 - 1) * b.spreadX,
-            y: b.yMin + Math.random() * (b.yMax - b.yMin),
-            z: b.z + (Math.random() * 2 - 1) * b.zSpread,
-          },
-          radius: b.tr,
-          scoreValue: b.score,
-          type: TargetType.Bonus,
-          life: b.life,
-          iconIndex: randIcon(),
-        }),
-      );
-    }
+    this.burst.update(dt);
   }
 
   /** 破壊された的を取り除き、再出現を予約。 */
@@ -155,11 +126,11 @@ export class Gallery implements StageTemplate {
     for (const t of this.near) if (!t.isDestroyed()) out.push(t);
     for (const s of this.holes) if (s.target && !s.target.isDestroyed()) out.push(s.target);
     for (const t of this.far) if (!t.isDestroyed()) out.push(t);
-    for (const b of this.bonus) if (!b.isDestroyed()) out.push(b);
+    out.push(...this.burst.targets());
     return out;
   }
   onHit(t: Target): number {
-    if (t.type === TargetType.Trigger) this.spawnBurst();
+    if (t.type === TargetType.Trigger) this.burst.spawn(t.position.x, t.position.z);
     return t.scoreValue;
   }
   getGuides(): GuideSegment[] { return []; }
