@@ -48,10 +48,10 @@ export const CursorConfig = {
   smoothTime: 0.12,
   /** DeadZone 半径 (px)。微小なブレを無視する。 */
   deadZoneRadius: 4,
-  radius: 18,
+  radius: 28,
   colorTracking: '#00e5ff',
   colorLost: '#ff3b30',
-  lineWidth: 3,
+  lineWidth: 3.5,
   /**
    * One Euro Filter のパラメータ (正規化座標 0..1 で適用)。
    *  minCutoff: 小さいほど静止時に強く平滑化(プルプル減)。ただし遅延が増える。
@@ -104,15 +104,19 @@ export const StagesConfig = {
     midLife: 2.2,
     midRespawn: 0.4,
     midScore: ScoreTier.mid,
-    far: { cx: 0, cy: 1.2, z: 9, radius: 2.6, count: 3, speed: 0.9, score: ScoreTier.high, tr: 0.7 },
+    far: { cx: 0, cy: 1.2, z: 9, radius: 2.6, count: 3, speed: 0.9, score: ScoreTier.high, tr: 0.52 },
+    /** 中ポップアップが「トリガー的(青)」になる確率。撃つとボーナスが噴き出す。 */
+    triggerChance: 0.3,
+    /** トリガー命中で噴き出すボーナス(1000点)の設定。 */
+    burst: { count: 6, life: 5, score: ScoreTier.top, tr: 0.42, spreadX: 4, yMin: -0.4, yMax: 2.2, z: 6.5, zSpread: 2 },
   },
 
   /** 回転オービット塔: 中央の柱の周りを水平カルーセルで周回(手前↔奥)。柱は細め。 */
   orbit: {
     pillar: { x: 0, y: 0.4, z: 9, radius: 1.1 },
     rings: [
-      { z: 9, r: 3.0, count: 6, speed: 0.8, score: ScoreTier.mid, tr: 0.78, cy: 0.2 },
-      { z: 9, r: 1.9, count: 4, speed: 1.1, score: ScoreTier.high, tr: 0.6, cy: 1.5 },
+      { z: 9, r: 3.0, count: 6, speed: 0.8, score: ScoreTier.mid, tr: 0.58, cy: 0.2 },
+      { z: 9, r: 1.9, count: 4, speed: 1.1, score: ScoreTier.high, tr: 0.44, cy: 1.5 },
     ],
   },
 
@@ -130,7 +134,7 @@ export const StagesConfig = {
       { x: 2.0, y: -0.2, z: 7, score: ScoreTier.mid },
     ],
     respawn: 0.7,
-    tr: 0.85,
+    tr: 0.6,
   },
 
   /** 立体モグラ叩き: 奥行き3段の穴から上下に出没。出現多め・長め=当てやすい。 */
@@ -146,7 +150,7 @@ export const StagesConfig = {
     sinkSec: 0.2,
     gapSec: 0.3,
     active: 6,
-    tr: 0.85,
+    tr: 0.6,
   },
 
   /**
@@ -156,10 +160,10 @@ export const StagesConfig = {
   tiers: {
     floorY: -2.2,
     steps: [
-      { y: -1.4, zNear: 5, zFar: 6.6, halfWidth: 5.0, count: 4, speed: 2.0, tr: 0.85, score: ScoreTier.low },
-      { y: -0.2, zNear: 7.0, zFar: 8.6, halfWidth: 4.6, count: 3, speed: 2.6, tr: 0.72, score: ScoreTier.mid },
-      { y: 1.0, zNear: 9.2, zFar: 10.8, halfWidth: 4.2, count: 3, speed: 3.0, tr: 0.6, score: ScoreTier.high },
-      { y: 2.2, zNear: 11.5, zFar: 13.0, halfWidth: 3.6, count: 2, speed: 3.4, tr: 0.52, score: ScoreTier.top },
+      { y: -1.4, zNear: 5, zFar: 6.6, halfWidth: 5.0, count: 4, speed: 2.0, tr: 0.6, score: ScoreTier.low },
+      { y: -0.2, zNear: 7.0, zFar: 8.6, halfWidth: 4.6, count: 3, speed: 2.6, tr: 0.52, score: ScoreTier.mid },
+      { y: 1.0, zNear: 9.2, zFar: 10.8, halfWidth: 4.2, count: 3, speed: 3.0, tr: 0.44, score: ScoreTier.high },
+      { y: 2.2, zNear: 11.5, zFar: 13.0, halfWidth: 3.6, count: 2, speed: 3.4, tr: 0.38, score: ScoreTier.top },
     ],
     respawn: 0.4,
   },
@@ -199,12 +203,12 @@ export const WorldConfig = {
   /** 投擲の発射元 (カメラ少し下=手元のイメージ)。 */
   muzzle: { x: 0, y: -0.5, z: 0.3 },
   /** ボールのワールド半径。 */
-  ballRadius: 0.34,
+  ballRadius: 0.24,
   ballColor: '#00e5ff',
   /** 軌跡 (Trail) の生存時間 (秒)。外した方向を線として残す。 */
   trailLifeSec: 0.12,
-  /** 当たり判定の倍率 (見た目ぴったり〜やや厳しめ)。 */
-  hitboxMultiplier: 0.9,
+  /** 当たり判定の倍率 (狭め。よく狙わないと当たらない)。 */
+  hitboxMultiplier: 0.5,
   /** 床の高さ。これより下に落ちたら消す。 */
   floorY: -4,
   /** これより奥(z)へ行ったら消す (的の後ろを通過)。 */
@@ -234,8 +238,8 @@ export const ArenaConfig = {
  * ターゲット共通設定 + 分類ごとの色・得点。
  */
 export const TargetConfig = {
-  /** 既定のワールド半径。 */
-  radius: 0.7,
+  /** 既定のワールド半径 (小さめ=難しめ)。 */
+  radius: 0.55,
   /** Hit フラッシュ表示時間 (秒)。 */
   hitFlashSec: 0.15,
   /** 出現アニメ(起き上がり)の時間 (秒)。 */

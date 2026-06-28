@@ -353,6 +353,7 @@ export class Renderer {
     // スプライト的 (画像) があれば優先して描く。不透明で奥の球を隠す。
     if (t.iconIndex !== null && this.assets.targetsReady) {
       this.drawSprite(t.iconIndex, p.x, p.y, drawR, isHit);
+      this.drawValueLabel(t, p.x, p.y, r);
       if (animated) ctx.restore();
       return;
     }
@@ -393,7 +394,31 @@ export class Renderer {
       ctx.restore();
     }
 
+    this.drawValueLabel(t, p.x, p.y, r);
     if (animated) ctx.restore();
+  }
+
+  /** 的の得点を下に表示 (中得点以上のみ。狙う優先度の手掛かり)。 */
+  private drawValueLabel(
+    t: ReturnType<StageTemplate['getTargets']>[number],
+    cx: number,
+    cy: number,
+    r: number,
+  ): void {
+    if (t.scoreValue < 300) return;
+    const { ctx } = this;
+    const big = t.scoreValue >= 1000;
+    ctx.save();
+    ctx.font = `bold ${Math.max(11, r * 0.6)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillStyle = big ? '#ffd60a' : '#ffffff';
+    const ty = cy + r + 2;
+    ctx.strokeText(String(t.scoreValue), cx, ty);
+    ctx.fillText(String(t.scoreValue), cx, ty);
+    ctx.restore();
   }
 
   /** 的スプライトシートの1セルを円形に切り抜いて描く。 */
