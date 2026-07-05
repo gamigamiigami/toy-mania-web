@@ -1,24 +1,30 @@
 import type { TemplateName } from '../../core/types';
 import type { StageTemplate } from '../StageTemplate';
-import { CurveCourse } from './CurveCourse';
-import { Gallery } from './Gallery';
-import { MoleGrid } from './MoleGrid';
-import { OrbitTower } from './OrbitTower';
-import { Tiers } from './Tiers';
+import { BalloonDarts } from './BalloonDarts';
+import { BonusRound } from './BonusRound';
+import { EggFarm } from './EggFarm';
+import { GalleryDarts } from './GalleryDarts';
+import { PlateCamp } from './PlateCamp';
+import { PracticePie } from './PracticePie';
+import { RingToss } from './RingToss';
 
 /** テンプレート名から実体を生成するファクトリ (拡張点)。 */
 export function createTemplate(name: TemplateName): StageTemplate {
   switch (name) {
+    case 'eggfarm':
+      return new EggFarm();
+    case 'balloon':
+      return new BalloonDarts();
+    case 'plates':
+      return new PlateCamp();
+    case 'rings':
+      return new RingToss();
     case 'gallery':
-      return new Gallery();
-    case 'orbit':
-      return new OrbitTower();
-    case 'curve':
-      return new CurveCourse();
-    case 'mole':
-      return new MoleGrid();
-    case 'tiers':
+      return new GalleryDarts();
+    case 'bonus':
+      return new BonusRound();
+    case 'practice':
     default:
-      return new Tiers();
+      return new PracticePie();
   }
 }

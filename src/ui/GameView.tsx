@@ -1,19 +1,45 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { PlayerConfig, STAGE_INFO } from '../config/GameConfig';
-import { GameEngine } from '../core/GameEngine';
+import { PlayerConfig, RankConfig, STAGE_INFO } from '../config/GameConfig';
+import { GameEngine, type PlayerResult } from '../core/GameEngine';
 import { RemoteHost } from '../net/RemoteHost';
 
 type Phase = 'idle' | 'loading' | 'playing' | 'error';
-type MatchPhase = 'waiting' | 'playing';
+type MatchPhase = 'waiting' | 'playing' | 'finished';
+
+/** 命中率からランク称号を決める。 */
+function rankTitle(accuracy: number): string {
+  for (const r of RankConfig.ranks) {
+    if (accuracy >= r.minAccuracy) return r.title;
+  }
+  return RankConfig.ranks[RankConfig.ranks.length - 1].title;
+}
+
+/** ハイスコアの読み書き (localStorage)。 */
+function loadHighScore(): number {
+  try {
+    return Number(localStorage.getItem(RankConfig.highScoreKey)) || 0;
+  } catch {
+    return 0;
+  }
+}
+function saveHighScore(score: number): void {
+  try {
+    localStorage.setItem(RankConfig.highScoreKey, String(score));
+  } catch {
+    /* プライベートモード等では保存しない */
+  }
+}
 
 /**
  * GameView (画面側)
- * 責務: 操作方法の選択、スマホ接続(QR)、開始の手動管理、2人対戦HUD。
+ * 責務: 操作方法の選択、スマホ接続(QR)、開始の手動管理、HUD、リザルト表示。
+ *       描画は WebGL キャンバス + HUD オーバーレイキャンバスの2枚重ね。
  */
 export function GameView() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const glCanvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const hostRef = useRef<RemoteHost | null>(null);
 
@@ -38,6 +64,9 @@ export function GameView() {
   const [durationSec, setDurationSec] = useState(30);
   const [transitionSec, setTransitionSec] = useState(2.5);
   const [spin, setSpin] = useState<'' | 'a' | 'b'>('');
+  const [results, setResults] = useState<PlayerResult[]>([]);
+  const [highScore, setHighScore] = useState(() => loadHighScore());
+  const [isNewRecord, setIsNewRecord] = useState(false);
   const spinToggle = useRef(false);
   const firstStage = useRef(true);
 
@@ -49,6 +78,8 @@ export function GameView() {
   }, []);
 
   const wireEngine = (engine: GameEngine) => {
+    // デバッグ/テスト用フック (コンソールから操作できる)。
+    (window as unknown as { __engine?: GameEngine }).__engine = engine;
     engine.onScoreChange = (id, s) =>
       setScores((arr) => {
         const next = [...arr];
@@ -62,7 +93,11 @@ export function GameView() {
         next[id] = c;
         return next;
       });
-    engine.onRoundStart = () => setMatchPhase('playing');
+    engine.onRoundStart = () => {
+      setResults([]);
+      setIsNewRecord(false);
+      setMatchPhase('playing');
+    };
     engine.onStage = (label) => {
       setStageLabel(label);
       if (firstStage.current) {
@@ -73,6 +108,19 @@ export function GameView() {
       setSpin(spinToggle.current ? 'a' : 'b');
       spinToggle.current = !spinToggle.current;
     };
+    engine.onGameOver = (res) => {
+      setResults(res);
+      setMatchPhase('finished');
+      const best = Math.max(0, ...res.map((r) => r.score));
+      setHighScore((prev) => {
+        if (best > prev) {
+          saveHighScore(best);
+          setIsNewRecord(true);
+          return best;
+        }
+        return prev;
+      });
+    };
     engine.onPlayerConnected = (id) =>
       setConnected((arr) => {
         const next = [...arr];
@@ -81,12 +129,23 @@ export function GameView() {
       });
   };
 
+  const createEngine = (mode: 'camera' | 'remote'): GameEngine | null => {
+    if (!videoRef.current || !glCanvasRef.current || !overlayCanvasRef.current)
+      return null;
+    return new GameEngine(
+      videoRef.current,
+      glCanvasRef.current,
+      overlayCanvasRef.current,
+      mode,
+    );
+  };
+
   const handleCamera = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
     setPhase('loading');
     setIsPhone(false);
     try {
-      const engine = new GameEngine(videoRef.current, canvasRef.current, 'camera');
+      const engine = createEngine('camera');
+      if (!engine) return;
       wireEngine(engine);
       engineRef.current = engine;
       setConnected(PlayerConfig.colors.map((_, i) => i === 0));
@@ -100,11 +159,11 @@ export function GameView() {
   };
 
   const handlePhone = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
     setIsPhone(true);
     setNetError('');
     try {
-      const engine = new GameEngine(videoRef.current, canvasRef.current, 'remote');
+      const engine = createEngine('remote');
+      if (!engine) return;
       wireEngine(engine);
       engineRef.current = engine;
 
@@ -161,14 +220,18 @@ export function GameView() {
   };
 
   const startMatch = () => engineRef.current?.startMatch();
-  const selectStage = (i: number) => engineRef.current?.selectStage(i);
+  const selectStage = (i: number) => {
+    setMatchPhase('playing');
+    setResults([]);
+    engineRef.current?.selectStage(i);
+  };
   const changeDuration = (sec: number) => {
     const v = Math.max(3, Math.round(sec) || 0);
     setDurationSec(v);
     engineRef.current?.setDuration(v);
   };
 
-  // テストプレイ用: 数字キー 1-4 でステージ即切替。
+  // テストプレイ用: 数字キー 1-7 でステージ即切替。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const n = Number(e.key);
@@ -184,6 +247,10 @@ export function GameView() {
   const stageCls =
     spin === 'a' ? 'stage spin-a' : spin === 'b' ? 'stage spin-b' : 'stage';
 
+  const topResult = results.length
+    ? results.reduce((a, b) => (b.score > a.score ? b : a))
+    : null;
+
   return (
     <div className="game-root">
       <div
@@ -192,7 +259,8 @@ export function GameView() {
         onAnimationEnd={() => setSpin('')}
       >
         <video ref={videoRef} playsInline muted className="hidden-video" />
-        <canvas ref={canvasRef} className="game-canvas" />
+        <canvas ref={glCanvasRef} className="game-canvas" />
+        <canvas ref={overlayCanvasRef} className="game-canvas overlay-canvas" />
 
         {phase === 'playing' && (
           <>
@@ -217,7 +285,7 @@ export function GameView() {
               {stageLabel && <span className="stage-chip">{stageLabel}</span>}
             </div>
 
-            {/* テストプレイ用: ステージ即切替 (数字キー1-4でも可) */}
+            {/* テストプレイ用: ステージ即切替 (数字キー1-7でも可) */}
             <div className="stage-switch">
               {STAGE_INFO.map((s, i) => (
                 <button
@@ -233,7 +301,7 @@ export function GameView() {
             {matchPhase === 'waiting' && (
               <div className="join-panel">
                 <h2>{isPhone ? 'スマホで参加 → スタート' : '準備OK？'}</h2>
-                {stageLabel && <p className="stage-name">ステージ: {stageLabel}</p>}
+                {stageLabel && <p className="stage-name">最初のシーン: {stageLabel}</p>}
                 {isPhone && qr && <img className="qr" src={qr} alt="QR" />}
                 {isPhone && !qr && !netError && (
                   <p className="hint-small">接続準備中… QRを生成しています</p>
@@ -262,7 +330,7 @@ export function GameView() {
                 )}
                 <div className="settings">
                   <label className="set-row">
-                    <span>1ステージの時間(秒)</span>
+                    <span>1シーンの時間(秒)</span>
                     <input
                       type="number"
                       min={3}
@@ -283,16 +351,63 @@ export function GameView() {
                     />
                   </label>
                 </div>
+                {highScore > 0 && (
+                  <p className="hint-small">ハイスコア: {highScore}</p>
+                )}
                 <button
                   className="start-btn"
                   onClick={startMatch}
                   disabled={!canStart}
                 >
-                  ▶ スタート（{durationSec}秒で巡回）
+                  ▶ ライドスタート（全{STAGE_INFO.length}シーン）
                 </button>
                 {isPhone && !canStart && (
                   <p className="hint-small">スマホが1台つながると開始できます</p>
                 )}
+              </div>
+            )}
+
+            {matchPhase === 'finished' && (
+              <div className="join-panel result-panel">
+                <h2>🎉 リザルト</h2>
+                {isNewRecord && <p className="new-record">✨ ニューレコード！</p>}
+                <table className="result-table">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>スコア</th>
+                      <th>命中率</th>
+                      <th>ランク</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.map((r) => (
+                      <tr
+                        key={r.id}
+                        className={topResult && r.id === topResult.id ? 'winner' : ''}
+                      >
+                        <td style={{ color: r.color }}>
+                          {topResult && r.id === topResult.id && results.length > 1
+                            ? '👑 '
+                            : ''}
+                          {r.name}
+                        </td>
+                        <td className="num">{r.score}</td>
+                        <td className="num">
+                          {Math.round(r.accuracy * 100)}%
+                          <span className="sub">
+                            ({r.hits}/{r.shots})
+                          </span>
+                        </td>
+                        <td>{rankTitle(r.accuracy)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="hint-small">ハイスコア: {highScore}</p>
+                <button className="start-btn" onClick={startMatch}>
+                  ↻ もう一度あそぶ
+                </button>
               </div>
             )}
           </>
@@ -300,8 +415,8 @@ export function GameView() {
 
         {phase !== 'playing' && (
           <div className="overlay">
-            <h1>まとあて 3D シューティング</h1>
-            <p className="subtitle">Toy Mania風 ・ 2人対戦</p>
+            <h1>トイマニア・ウェブ</h1>
+            <p className="subtitle">カーニバル 3D シューティングライド ・ 最大4人</p>
             {phase === 'idle' && (
               <>
                 <p>操作方法を選んでください。</p>

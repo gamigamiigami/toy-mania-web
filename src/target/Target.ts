@@ -1,17 +1,20 @@
 import { TargetConfig } from '../config/GameConfig';
-import { TargetState, TargetType, type Vec3 } from '../core/types';
+import {
+  TargetState,
+  TargetType,
+  type TargetStyle,
+  type Vec3,
+} from '../core/types';
 
 export interface TargetOptions {
   position: Vec3;
   type?: TargetType;
   radius?: number;
   scoreValue?: number;
-  /** 連鎖テンプレートの番号など、表示用ラベル。 */
-  label?: string | null;
+  /** 見た目 (ThreeRenderer がメッシュを選ぶ)。 */
+  style?: TargetStyle;
   /** 出現からの生存時間 (秒)。Infinity で永続。 */
   life?: number;
-  /** 的スプライトシートのアイコン番号 (0..8)。未指定なら円で描画。 */
-  iconIndex?: number | null;
 }
 
 /**
@@ -23,15 +26,13 @@ export interface TargetOptions {
 export class Target {
   readonly position: Vec3;
   readonly type: TargetType;
-  /** 半径・得点は「撃つほど成長する的」のため可変。 */
+  readonly style: TargetStyle;
+  /** 半径・得点は「成長ターゲット」のため可変。 */
   radius: number;
   scoreValue: number;
-  readonly label: string | null;
-  /** 的スプライトのアイコン番号 (未指定=null)。 */
-  readonly iconIndex: number | null;
   /** 横移動速度 (スライダー用、ワールド単位/秒)。 */
   vx = 0;
-  /** 汎用パラメータ (オービット角・モグラ経過など、テンプレートが利用)。 */
+  /** 汎用パラメータ (オービット角・出没経過など、テンプレートが利用)。 */
   phase = 0;
   /** 残り生存時間 (ポップアップ/ボーナス用)。 */
   life: number;
@@ -42,10 +43,9 @@ export class Target {
   constructor(opts: TargetOptions) {
     this.position = { ...opts.position };
     this.type = opts.type ?? TargetType.Normal;
+    this.style = opts.style ?? 'bullseye';
     this.radius = opts.radius ?? TargetConfig.radius;
     this.scoreValue = opts.scoreValue ?? TargetConfig.scores[this.type];
-    this.label = opts.label ?? null;
-    this.iconIndex = opts.iconIndex ?? null;
     this.life = opts.life ?? Infinity;
   }
 
@@ -57,7 +57,7 @@ export class Target {
     return true;
   }
 
-  /** 被弾後に再び撃てる状態へ戻す (撃つほど成長する的用)。 */
+  /** 被弾後に再び撃てる状態へ戻す (成長ターゲット用)。 */
   revive(): void {
     this.state = TargetState.Idle;
     this.flash = 0;

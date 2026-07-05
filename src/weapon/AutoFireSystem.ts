@@ -1,14 +1,16 @@
-import { WeaponConfig } from '../config/GameConfig';
-
 /**
  * AutoFireSystem
- * 責務: 一定間隔 (0.5秒 = 2発/秒) で発射イベントを発火する。
- *       プレイヤーの発射操作は存在しない (自動連射)。
+ * 責務: 一定間隔で発射イベントを発火する (カメラ操作時の自動連射)。
+ *       間隔はステージの武器 (WeaponSpec.fireIntervalSec) に従う。
  */
 export class AutoFireSystem {
   private elapsed = 0;
 
-  constructor(private readonly onFire: () => void) {}
+  constructor(
+    private readonly onFire: () => void,
+    /** 現在の発射間隔 (秒) を返す。ステージ切替で変わるため関数で渡す。 */
+    private readonly getInterval: () => number,
+  ) {}
 
   /**
    * @param dt 経過時間 (秒)
@@ -21,9 +23,10 @@ export class AutoFireSystem {
       return;
     }
 
+    const interval = this.getInterval();
     this.elapsed += dt;
-    while (this.elapsed >= WeaponConfig.fireIntervalSec) {
-      this.elapsed -= WeaponConfig.fireIntervalSec;
+    while (this.elapsed >= interval) {
+      this.elapsed -= interval;
       this.onFire();
     }
   }

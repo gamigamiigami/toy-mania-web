@@ -52,6 +52,13 @@ body {
   display: block;
 }
 
+/* HUD オーバーレイ: WebGL キャンバスの上に重ねる2Dレイヤー。 */
+.overlay-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 .hidden-video {
   position: absolute;
   width: 1px;
@@ -211,38 +218,55 @@ body {
   border-radius: 8px;
 }
 
-.result-panel {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  background: rgba(0, 0, 0, 0.7);
-  text-align: center;
-}
-
-.result-panel h1 {
-  font-size: clamp(40px, 8vw, 88px);
+/* リザルト画面 (join-panel を流用して表を足す)。 */
+.result-panel h2 {
   color: #ffd60a;
 }
 
-.result-scores {
-  display: flex;
-  gap: 32px;
-  font-size: clamp(22px, 4vw, 40px);
+.new-record {
   font-weight: 900;
+  color: #ff9f0a;
+  animation: pulse 0.9s ease-in-out infinite alternate;
 }
 
-.result-panel .winner {
-  font-size: clamp(24px, 5vw, 48px);
-  font-weight: 900;
-  color: #fff;
+@keyframes pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.12); }
 }
 
-.result-panel .next {
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.result-table th {
   color: #9aa3ad;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.result-table td {
+  padding: 6px 8px;
+  font-weight: 800;
+  border-top: 1px solid rgba(120, 180, 255, 0.25);
+}
+
+.result-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-table .sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9aa3ad;
+}
+
+.result-table tr.winner td {
+  background: rgba(255, 214, 10, 0.08);
 }
 
 .stage-switch {

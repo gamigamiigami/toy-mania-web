@@ -1,5 +1,6 @@
 import { WorldConfig } from '../config/GameConfig';
 import type { Vec3 } from '../core/types';
+import type { WeaponSpec } from './WeaponSpec';
 
 /** Trail を構成する点 (経過時間つき)。 */
 export interface TrailPoint {
@@ -9,46 +10,63 @@ export interface TrailPoint {
 
 /**
  * Projectile
- * 責務: 3D空間を飛ぶ1個のボール。重力を受けて放物線を描く。
- *       奥(+z)へ進むほど飛行時間が伸び、落下量が増える。
+ * 責務: 3D空間を飛ぶ1個の投擲物。WeaponSpec (重力倍率・空気抵抗) に従って
+ *       弾道が変わる。卵=山なり / ダーツ=直線 / 輪=ふわり。
  */
 export class Projectile {
   readonly position: Vec3;
   private readonly velocity: Vec3;
-  readonly radius = WorldConfig.ballRadius;
+  readonly radius: number;
   readonly trail: TrailPoint[] = [];
   private age = 0;
   private alive = true;
-  /** 横方向の加速 (カーブ。ワールド単位/秒^2)。0=直進。 */
+  /** 横方向の加速 (カーブ)。0=直進。 */
   private readonly curve: number;
-  /** 撃ったプレイヤー。 */
   readonly playerId: number;
-  /** 弾の色 (プレイヤー色)。 */
   readonly color: string;
+  readonly spec: WeaponSpec;
+  /** 描画用: 発射からの回転位相 (リングのスピンなど)。 */
+  spin = 0;
 
   constructor(
     position: Vec3,
     velocity: Vec3,
+    spec: WeaponSpec,
     curve = 0,
     playerId = 0,
-    color: string = WorldConfig.ballColor,
+    color?: string,
   ) {
     this.position = { ...position };
     this.velocity = { ...velocity };
+    this.spec = spec;
+    this.radius = spec.radius;
     this.curve = curve;
     this.playerId = playerId;
-    this.color = color;
+    this.color = color ?? spec.color;
+  }
+
+  /** 現在の速度 (描画で向きを合わせる用)。 */
+  getVelocity(): Vec3 {
+    return this.velocity;
   }
 
   update(dt: number): void {
-    // 重力で下向きに加速 (y は上が正)。
-    this.velocity.y -= WorldConfig.gravity * dt;
+    // 重力 (武器ごとの倍率) で下向きに加速。
+    this.velocity.y -= WorldConfig.gravity * this.spec.gravityScale * dt;
+    // 空気抵抗: 速度に比例して減速 (輪のふわり感)。
+    if (this.spec.drag > 0) {
+      const k = Math.max(0, 1 - this.spec.drag * dt);
+      this.velocity.x *= k;
+      this.velocity.y *= k;
+      this.velocity.z *= k;
+    }
     // カーブ: 横方向に加速して弧を描く。
     this.velocity.x += this.curve * dt;
     this.position.x += this.velocity.x * dt;
     this.position.y += this.velocity.y * dt;
     this.position.z += this.velocity.z * dt;
     this.age += dt;
+    this.spin += dt * 10;
 
     // Trail 更新: 現在地を追加し、寿命を過ぎた点を捨てる。
     this.trail.push({ pos: { ...this.position }, age: 0 });
@@ -66,7 +84,7 @@ export class Projectile {
     if (this.age >= WorldConfig.maxLifeSec) return true;
     return (
       this.position.z > WorldConfig.maxZ ||
-      this.position.y < WorldConfig.floorY
+      this.position.y < WorldConfig.floorY - 0.5
     );
   }
 

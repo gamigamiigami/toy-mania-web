@@ -41,7 +41,7 @@ export enum TargetState {
  *  Normal    : 基本ターゲット
  *  HighValue : 高得点 (視線誘導の最優先)
  *  Trigger   : 撃つと状況が変化する (高得点ではない)
- *  Bonus     : 条件達成後に出現する発見の報酬 (通常の5倍)
+ *  Bonus     : 条件達成後に出現する発見の報酬
  */
 export enum TargetType {
   Normal = 'Normal',
@@ -50,10 +50,54 @@ export enum TargetType {
   Bonus = 'Bonus',
 }
 
-/** ステージテンプレート種別。 */
-export type TemplateName = 'tiers' | 'gallery' | 'orbit' | 'curve' | 'mole';
+/**
+ * ステージ(シーン)種別。本家アトラクションの7シーン構成:
+ * 練習(パイ) → 卵投げ牧場 → 風船火山ダーツ → 皿割りキャンプ
+ * → リングトス宇宙港 → 吸盤ダーツ射的場 → ボーナスラウンド
+ */
+export type TemplateName =
+  | 'practice'
+  | 'eggfarm'
+  | 'balloon'
+  | 'plates'
+  | 'rings'
+  | 'gallery'
+  | 'bonus';
 
-/** 弾を遮る障害物 (球)。カーブで避けて当てる用。 */
+/**
+ * ターゲットの見た目 (ThreeRenderer がメッシュを選ぶ)。
+ * カーニバルの「木の板の的」らしさを保ちつつシーンごとにテーマを変える。
+ */
+export type TargetStyle =
+  | 'bullseye' // 同心円の的 (練習・汎用)
+  | 'pig' // ブタの板的
+  | 'sheep' // ヒツジの板的
+  | 'weasel' // 柵から出没するイタチ
+  | 'bird' // 空を飛ぶトリ
+  | 'fox' // 屋根のキツネ (トリガー)
+  | 'chicken' // 小屋から出るニワトリ (ボーナス)
+  | 'balloon' // 風船
+  | 'lava' // 溶岩風船 (トリガー)
+  | 'plate' // 皿
+  | 'stack' // 皿の山 (ボーナス)
+  | 'alien' // 周回するエイリアン風
+  | 'core' // ロボットの胸コア (トリガー)
+  | 'wood' // 木の板的 (西部)
+  | 'star' // 星の的 (トリガー)
+  | 'bat' // コウモリ (ボーナス)
+  | 'cart' // トロッコ
+  | 'grow'; // 成長ターゲット
+
+/** 撃った結果ステージ側で起きた出来事 (演出・効果音用)。 */
+export type StageEventKind =
+  | 'door' // 小屋の扉が開いた
+  | 'eruption' // 火山噴火
+  | 'stack' // 皿の山出現
+  | 'rocket' // ロケット発射
+  | 'bats' // コウモリ群飛来
+  | 'growFinish'; // 成長ターゲットのフィニッシュ
+
+/** 弾を遮る障害物 (球)。 */
 export interface Obstacle {
   x: number;
   y: number;

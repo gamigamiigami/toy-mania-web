@@ -2,6 +2,7 @@ import { WorldConfig } from '../config/GameConfig';
 import type { Obstacle, Vec3 } from '../core/types';
 import type { Target } from '../target/Target';
 import { Projectile } from './Projectile';
+import type { WeaponSpec } from './WeaponSpec';
 
 /** 命中イベント (命中点は3Dワールド座標)。 */
 export interface ProjectileHit {
@@ -13,22 +14,24 @@ export interface ProjectileHit {
 
 /**
  * ProjectileSystem
- * 責務: 3Dボールの発射・移動・破棄、およびターゲットとの球同士の衝突判定。
+ * 責務: 投擲物の発射・移動・破棄、およびターゲットとの球同士の衝突判定。
+ *       弾道は WeaponSpec (ステージ別武器) に従う。
  */
 export class ProjectileSystem {
   private projectiles: Projectile[] = [];
 
   /**
-   * 照準レイ方向へボールを1発投げる。
+   * 照準レイ方向へ現在の武器で1発投げる。
    * @param rayDir カメラから奥へ伸びる単位方向ベクトル (Camera.screenToRay)
    */
   launch(
     rayDir: Vec3,
+    spec: WeaponSpec,
     curveRatio = 0,
     playerId = 0,
-    color: string = WorldConfig.ballColor,
+    color?: string,
   ): void {
-    const v = WorldConfig.throwSpeed;
+    const v = spec.speed;
     const velocity: Vec3 = {
       x: rayDir.x * v,
       y: rayDir.y * v,
@@ -36,12 +39,19 @@ export class ProjectileSystem {
     };
     const curve = curveRatio * WorldConfig.curveAccel;
     this.projectiles.push(
-      new Projectile({ ...WorldConfig.muzzle }, velocity, curve, playerId, color),
+      new Projectile(
+        { ...WorldConfig.muzzle },
+        velocity,
+        spec,
+        curve,
+        playerId,
+        color,
+      ),
     );
   }
 
   /**
-   * ボールを進め、ターゲットとの衝突 (球vs球) を判定する。
+   * 弾を進め、ターゲットとの衝突 (球vs球) を判定する。
    * @returns このフレームで発生した命中の配列
    */
   update(
@@ -85,7 +95,7 @@ export class ProjectileSystem {
     return this.projectiles;
   }
 
-  /** 全弾を消す (テンプレート切替時など)。 */
+  /** 全弾を消す (ステージ切替時など)。 */
   clear(): void {
     this.projectiles = [];
   }
