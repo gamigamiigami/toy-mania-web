@@ -39,12 +39,24 @@ export class Renderer {
     feedback: FeedbackManager,
     projectiles: ProjectileSystem,
     camera: Camera,
+    shake = 0,
+    theme = '#4aa3df',
   ): void {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // 大物命中の画面シェイク。
+    ctx.save();
+    if (shake > 0.5) {
+      ctx.translate(
+        (Math.random() - 0.5) * shake,
+        (Math.random() - 0.5) * shake,
+      );
+    }
+
     const useImageBg = !!template.backgroundKey;
     this.drawBackground(useImageBg);
+    this.drawThemeTint(theme);
 
     const props = template.getProps?.() ?? [];
     if (!useImageBg) this.drawFloorGrid(camera);
@@ -62,6 +74,36 @@ export class Renderer {
     for (const p of players) {
       if (p.connected) this.drawCursor(p.cursor, p.color);
     }
+
+    ctx.restore();
+    this.drawVignette();
+  }
+
+  /** ステージのテーマ色を薄く重ねて色味を変える (ステージごとの空気感)。 */
+  private drawThemeTint(theme: string): void {
+    const { ctx, canvas } = this;
+    ctx.save();
+    ctx.globalAlpha = 0.1;
+    ctx.fillStyle = theme;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+
+  /** 周辺減光 (画面に締まりを出す)。 */
+  private drawVignette(): void {
+    const { ctx, canvas } = this;
+    const g = ctx.createRadialGradient(
+      canvas.width / 2,
+      canvas.height / 2,
+      canvas.height * 0.5,
+      canvas.width / 2,
+      canvas.height / 2,
+      canvas.height * 0.95,
+    );
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.32)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
   /**
@@ -338,6 +380,14 @@ export class Renderer {
     const isHit = t.state === TargetState.Hit;
     // 命中の瞬間は割れる演出のため少し拡大して描く。
     const drawR = isHit ? r * 1.25 : r;
+
+    // 落ち影 (的の直下に楕円)。奥行き・存在感の手掛かり。
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + r * 1.18, r * 0.85, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
 
     // 出現アニメ: 倒れた的が立ち上がる(下端を軸に縦スケール)。
     const sy = t.spawnScaleY();

@@ -12,6 +12,9 @@ export class Player {
   /** remote(スマホ)入力時の最新照準。 */
   remoteAim: Vec2 | null = null;
   connected = false;
+  /** ライド1回分の統計 (精度表示用)。 */
+  shots = 0;
+  hits = 0;
 
   constructor(
     readonly id: number,
@@ -25,5 +28,12 @@ export class Player {
 
   reset(): void {
     this.score.reset();
+    this.shots = 0;
+    this.hits = 0;
+  }
+
+  /** 命中精度 (0-100)。未発射は0。 */
+  accuracy(): number {
+    return this.shots > 0 ? Math.round((this.hits / this.shots) * 100) : 0;
   }
 }

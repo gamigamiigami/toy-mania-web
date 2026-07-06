@@ -62,4 +62,23 @@ export class Sound {
       setTimeout(() => this.blip(f, 0.16, 'triangle', 0.09), i * 120),
     );
   }
+
+  /** ステージ到着ファンファーレ (短い上昇形)。 */
+  stageStart(): void {
+    [523, 659, 784].forEach((f, i) =>
+      setTimeout(() => this.blip(f, 0.11, 'triangle', 0.08), i * 80),
+    );
+  }
+
+  /** 残り秒数のカウントダウンtick。 */
+  tick(): void {
+    this.blip(1180, 0.06, 'square', 0.06);
+  }
+
+  /** ライド終了の大ファンファーレ。 */
+  finale(): void {
+    [523, 659, 784, 1046, 784, 1046, 1318].forEach((f, i) =>
+      setTimeout(() => this.blip(f, 0.2, 'triangle', 0.1), i * 130),
+    );
+  }
 }

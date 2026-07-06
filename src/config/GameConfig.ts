@@ -185,13 +185,13 @@ export const StagesConfig = {
   },
 } as const;
 
-/** ステージ表示名 と ローテーション順。 */
-export const STAGE_INFO: { name: string; label: string }[] = [
-  { name: 'tiers', label: 'ひな壇' },
-  { name: 'gallery', label: '3層ギャラリー' },
-  { name: 'orbit', label: '回転オービット塔' },
-  { name: 'curve', label: 'カーブ迫りコース' },
-  { name: 'mole', label: '立体モグラ叩き' },
+/** ステージ表示名・ローテーション順・カラーテーマ (画面の色味/バナー)。 */
+export const STAGE_INFO: { name: string; label: string; theme: string }[] = [
+  { name: 'tiers', label: 'ひな壇ストリート', theme: '#39d353' },
+  { name: 'gallery', label: '3層ギャラリー', theme: '#4aa3df' },
+  { name: 'orbit', label: '回転オービット塔', theme: '#b06ce9' },
+  { name: 'curve', label: 'カーブ峡谷', theme: '#ff9f0a' },
+  { name: 'mole', label: 'ビッグ・フィナーレ', theme: '#ff453a' },
 ];
 
 export const ControllerConfig = {
@@ -394,6 +394,10 @@ export const FeedbackConfig = {
   debrisSpeed: 420,
   debrisGravity: 900,
   debrisColors: ['#d33a2c', '#f2e6c2', '#ffffff', '#ffd60a'],
+  /** リザルトの紙吹雪。 */
+  confettiCount: 90,
+  confettiLifeSec: 2.6,
+  confettiColors: ['#ffd60a', '#ff3bd0', '#00e5ff', '#39d353', '#ffffff', '#ff9f0a'],
 } as const;
 
 /** 画像アセット (背景・的スプライトシート)。public/scene/ に配置。 */

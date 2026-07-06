@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { PlayerConfig, STAGE_INFO } from '../config/GameConfig';
-import { GameEngine } from '../core/GameEngine';
+import { GameEngine, type RunResult } from '../core/GameEngine';
 import { RemoteHost } from '../net/RemoteHost';
 
 type Phase = 'idle' | 'loading' | 'playing' | 'error';
-type MatchPhase = 'waiting' | 'playing';
+type MatchPhase = 'waiting' | 'playing' | 'results';
+
+const BEST_KEY = 'toymania-best-score';
 
 /**
  * GameView (画面側)
@@ -38,8 +40,22 @@ export function GameView() {
   const [durationSec, setDurationSec] = useState(30);
   const [transitionSec, setTransitionSec] = useState(2.5);
   const [spin, setSpin] = useState<'' | 'a' | 'b'>('');
+  const [banner, setBanner] = useState('');
+  const [runResult, setRunResult] = useState<RunResult | null>(null);
+  const [bestScore, setBestScore] = useState<number>(() =>
+    Number(localStorage.getItem(BEST_KEY) ?? 0),
+  );
+  const [newRecord, setNewRecord] = useState(false);
   const spinToggle = useRef(false);
   const firstStage = useRef(true);
+  const bannerTimer = useRef<number | null>(null);
+
+  /** ステージ名バナーを数秒だけ表示。 */
+  const showBanner = (label: string) => {
+    setBanner(label);
+    if (bannerTimer.current) window.clearTimeout(bannerTimer.current);
+    bannerTimer.current = window.setTimeout(() => setBanner(''), 2600);
+  };
 
   useEffect(() => {
     return () => {
@@ -62,9 +78,31 @@ export function GameView() {
         next[id] = c;
         return next;
       });
-    engine.onRoundStart = () => setMatchPhase('playing');
+    engine.onRoundStart = () => {
+      setMatchPhase('playing');
+      setRunResult(null);
+      setNewRecord(false);
+    };
+    engine.onRunOver = (result) => {
+      setMatchPhase('results');
+      setRunResult(result);
+      // ハイスコア更新判定 (接続中プレイヤーの最高得点)。
+      const top = Math.max(
+        0,
+        ...result.scores.filter((_, i) => result.connected[i]),
+      );
+      setBestScore((prev) => {
+        if (top > prev) {
+          localStorage.setItem(BEST_KEY, String(top));
+          setNewRecord(true);
+          return top;
+        }
+        return prev;
+      });
+    };
     engine.onStage = (label) => {
       setStageLabel(label);
+      showBanner(label);
       if (firstStage.current) {
         firstStage.current = false;
         return;
@@ -161,6 +199,7 @@ export function GameView() {
   };
 
   const startMatch = () => engineRef.current?.startMatch();
+  const toLobby = () => engineRef.current?.toLobby();
   const selectStage = (i: number) => engineRef.current?.selectStage(i);
   const changeDuration = (sec: number) => {
     const v = Math.max(3, Math.round(sec) || 0);
@@ -213,9 +252,18 @@ export function GameView() {
                   ) : null,
                 )}
               </div>
-              <span className="timer">{timeLeft}</span>
+              <span className={timeLeft <= 3 ? 'timer urgent' : 'timer'}>
+                {timeLeft}
+              </span>
               {stageLabel && <span className="stage-chip">{stageLabel}</span>}
             </div>
+
+            {/* ステージ到着バナー */}
+            {banner && matchPhase === 'playing' && (
+              <div className="stage-banner">
+                <span>{banner}</span>
+              </div>
+            )}
 
             {/* テストプレイ用: ステージ即切替 (数字キー1-4でも可) */}
             <div className="stage-switch">
@@ -288,11 +336,56 @@ export function GameView() {
                   onClick={startMatch}
                   disabled={!canStart}
                 >
-                  ▶ スタート（{durationSec}秒で巡回）
+                  ▶ ライド出発（全5ステージ ・ 各{durationSec}秒）
                 </button>
+                {bestScore > 0 && (
+                  <p className="best-score">🏆 ハイスコア {bestScore}</p>
+                )}
                 {isPhone && !canStart && (
                   <p className="hint-small">スマホが1台つながると開始できます</p>
                 )}
+              </div>
+            )}
+
+            {matchPhase === 'results' && runResult && (
+              <div className="result-panel">
+                <h1>RIDE COMPLETE!</h1>
+                {newRecord && <p className="record">🏆 ハイスコア更新！</p>}
+                <div className="result-rows">
+                  {ids
+                    .filter((id) => runResult.connected[id])
+                    .sort((a, b) => runResult.scores[b] - runResult.scores[a])
+                    .map((id, rank) => (
+                      <div
+                        key={id}
+                        className={rank === 0 ? 'result-row winner-row' : 'result-row'}
+                        style={{ borderColor: PlayerConfig.colors[id] }}
+                      >
+                        <span className="rank">
+                          {rank === 0 ? '👑' : `${rank + 1}位`}
+                        </span>
+                        <span
+                          className="pname"
+                          style={{ color: PlayerConfig.colors[id] }}
+                        >
+                          {PlayerConfig.names[id]}
+                        </span>
+                        <span className="pscore">{runResult.scores[id]}</span>
+                        <span className="pacc">
+                          命中率 {runResult.accuracies[id]}%
+                        </span>
+                      </div>
+                    ))}
+                </div>
+                <p className="best-score">🏆 ハイスコア {bestScore}</p>
+                <div className="mode-row">
+                  <button className="start-btn" onClick={startMatch}>
+                    🔁 もう一回のる
+                  </button>
+                  <button className="start-btn secondary" onClick={toLobby}>
+                    ロビーへ
+                  </button>
+                </div>
               </div>
             )}
           </>

@@ -39,6 +39,24 @@ export class FeedbackManager {
   private scores: ScoreText[] = [];
   private debris: Debris[] = [];
 
+  /** リザルトの紙吹雪 (画面上部から降らせる)。 */
+  addConfetti(width: number, height: number): void {
+    const colors = FeedbackConfig.confettiColors;
+    for (let i = 0; i < FeedbackConfig.confettiCount; i++) {
+      this.debris.push({
+        position: { x: Math.random() * width, y: -20 - Math.random() * height * 0.3 },
+        vel: {
+          x: (Math.random() - 0.5) * 160,
+          y: 60 + Math.random() * 120,
+        },
+        life: FeedbackConfig.confettiLifeSec * (0.6 + Math.random() * 0.4),
+        maxLife: FeedbackConfig.confettiLifeSec,
+        size: 4 + Math.random() * 6,
+        color: colors[i % colors.length],
+      });
+    }
+  }
+
   /** 命中で的が割れる破片を生成する。 */
   addBreak(position: Vec2, radiusPx: number): void {
     const n = FeedbackConfig.debrisCount;

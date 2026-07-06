@@ -19,7 +19,14 @@ import { ProjectileSystem } from '../weapon/ProjectileSystem';
 import { Renderer } from '../ui/Renderer';
 
 export type InputMode = 'camera' | 'remote';
-export type Phase = 'waiting' | 'playing';
+export type Phase = 'waiting' | 'playing' | 'results';
+
+/** ライド1回分の最終結果。 */
+export interface RunResult {
+  scores: number[];
+  accuracies: number[];
+  connected: boolean[];
+}
 
 /**
  * GameEngine
@@ -46,6 +53,12 @@ export class GameEngine {
   private phase: Phase = 'waiting';
   private roundDuration: number = RoundConfig.durationSec;
   private timeLeft: number = RoundConfig.durationSec;
+  /** ライド開始時のステージ (ここに戻ってきたら1周=終了)。 */
+  private runStartIndex = 0;
+  /** 画面シェイクの残量 (px)。大物命中で発生し減衰。 */
+  private shake = 0;
+  /** カウントダウンtick用 (直前に鳴らした整数秒)。 */
+  private lastTickSec = -1;
 
   /** UI への通知。 */
   onScoreChange: (playerId: number, score: number) => void = () => {};
@@ -57,6 +70,8 @@ export class GameEngine {
   onPlayerConnected: (playerId: number) => void = () => {};
   /** コンボ更新 (HUD表示用)。 */
   onCombo: (playerId: number, combo: number) => void = () => {};
+  /** ライド1周が終わった (最終リザルト表示用)。 */
+  onRunOver: (result: RunResult) => void = () => {};
   /** 次にプレイするステージ名 (待機中に表示)。 */
   onStage: (label: string) => void = () => {};
 
@@ -111,10 +126,12 @@ export class GameEngine {
     if (p) p.remoteAim = { x, y };
   }
 
-  /** スワイプ発射 (curve: -1..1)。 */
+  /** スワイプ発射 (curve: -1..1)。リザルト中は撃てない。 */
   fire(id: number, curve: number): void {
+    if (this.phase === 'results') return;
     const p = this.players[id];
     if (!p || !p.connected) return;
+    p.shots += 1;
     const ray = this.camera.screenToRay(p.cursor.getPosition());
     this.projectiles.launch(ray, curve, id, p.color);
     this.sound.fire();
@@ -152,17 +169,31 @@ export class GameEngine {
     }
   }
 
-  /** ラウンド開始 (ホストが手動でスタート)。スコア/的をリセットしてカウント開始。 */
+  /** ライド開始 (ホストが手動でスタート)。ここから5ステージ1周のラン。 */
   startMatch(): void {
     this.sound.init(); // ユーザー操作で音声を起動
+    this.runStartIndex = this.stageIndex;
     for (const p of this.players) p.reset();
     this.template = createTemplate(this.templateName);
     this.projectiles.clear();
     this.timeLeft = this.roundDuration;
+    this.lastTickSec = -1;
     this.phase = 'playing';
     this.players.forEach((p) => this.onScoreChange(p.id, 0));
     this.onTime(this.roundDuration);
+    this.sound.stageStart();
     this.onRoundStart();
+  }
+
+  /** リザルトからロビーへ戻る。 */
+  toLobby(): void {
+    this.phase = 'waiting';
+    for (const p of this.players) p.reset();
+    this.template = createTemplate(this.templateName);
+    this.projectiles.clear();
+    this.players.forEach((p) => this.onScoreChange(p.id, 0));
+    this.onTime(this.roundDuration);
+    this.onWaiting();
   }
 
   /** 指定ステージへ即切り替えて開始 (テストプレイ用)。 */
@@ -187,16 +218,40 @@ export class GameEngine {
     }
   }
 
-  /** 次ステージへ移動 (ゲームは止めず、スコアは累積)。 */
+  /** 次ステージへ移動 (ゲームは止めず、スコアは累積)。1周したらリザルトへ。 */
   private advanceStage(): void {
-    this.stageIndex = (this.stageIndex + 1) % STAGE_INFO.length;
+    const next = (this.stageIndex + 1) % STAGE_INFO.length;
+    if (next === this.runStartIndex) {
+      this.endRun();
+      return;
+    }
+    this.stageIndex = next;
     this.templateName = STAGE_INFO[this.stageIndex].name as TemplateName;
     this.template = createTemplate(this.templateName);
     this.projectiles.clear();
     this.timeLeft = this.roundDuration;
-    this.sound.roundEnd();
+    this.lastTickSec = -1;
+    this.sound.stageStart();
     this.onTime(this.roundDuration);
     this.onStage(STAGE_INFO[this.stageIndex].label);
+  }
+
+  /** ライド終了: ファンファーレ + 紙吹雪 + 最終リザルト。 */
+  private endRun(): void {
+    this.phase = 'results';
+    this.projectiles.clear();
+    this.sound.finale();
+    this.feedback.addConfetti(CameraConfig.width, CameraConfig.height);
+    this.onRunOver({
+      scores: this.players.map((p) => p.score.getScore()),
+      accuracies: this.players.map((p) => p.accuracy()),
+      connected: this.players.map((p) => p.connected),
+    });
+  }
+
+  /** 現在ステージのテーマ色。 */
+  getTheme(): string {
+    return STAGE_INFO[this.stageIndex].theme;
   }
 
   /** ゲーム本体の進行 (待機中も warmup として動かす)。 */
@@ -216,7 +271,9 @@ export class GameEngine {
       const base = this.template.onHit(hit.target);
       const pl = this.players[hit.playerId];
       if (!pl) continue;
+      pl.hits += 1;
       const awarded = pl.score.add(base); // コンボ倍率込みの実加点
+      if (awarded >= 600) this.shake = Math.min(14, this.shake + 8); // 大物は画面が揺れる
       this.sound.hit(awarded);
       const proj = this.camera.project(hit.point);
       if (proj.visible) {
@@ -246,13 +303,24 @@ export class GameEngine {
 
     this.updateAim(dt, now); // 照準は常時更新
     this.feedback.update(dt);
-    this.runGameplay(dt, now); // 移動中もゲームは止めない(乗り物に乗りながら)
+    if (this.phase !== 'results') {
+      this.runGameplay(dt, now); // 移動中もゲームは止めない(乗り物に乗りながら)
+    }
 
     if (this.phase === 'playing') {
       this.timeLeft -= dt;
-      this.onTime(Math.max(0, Math.ceil(this.timeLeft)));
+      const sec = Math.max(0, Math.ceil(this.timeLeft));
+      this.onTime(sec);
+      // 残り3秒はカウントダウンtick。
+      if (sec <= 3 && sec >= 1 && sec !== this.lastTickSec) {
+        this.lastTickSec = sec;
+        this.sound.tick();
+      }
       if (this.timeLeft <= 0) this.advanceStage(); // 次ステージへゆっくり移動
     }
+
+    // 画面シェイク減衰。
+    this.shake = Math.max(0, this.shake - dt * 40);
 
     this.renderer.render(
       this.template,
@@ -260,6 +328,8 @@ export class GameEngine {
       this.feedback,
       this.projectiles,
       this.camera,
+      this.shake,
+      this.getTheme(),
     );
 
     this.rafId = requestAnimationFrame(this.loop);
