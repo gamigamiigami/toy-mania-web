@@ -29,6 +29,10 @@ export interface StageTemplate {
   onHit(target: Target): number;
   /** 描画用の誘導ガイド線。 */
   getGuides(): GuideSegment[];
+  /** 協力ギミック達成 (2人が短時間に両方トリガー) → 特大ボーナス解放 (任意)。 */
+  onCoopTrigger?(): void;
+  /** ステージの残り時間の通知 (任意)。フィナーレのボーナスタイム等に使う。 */
+  onTimeLeft?(sec: number): void;
   /** 背景・建物などのシーン装飾 (任意)。 */
   getProps?(): SceneProp[];
   /** 弾を遮る障害物 (任意)。 */

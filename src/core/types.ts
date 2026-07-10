@@ -50,8 +50,14 @@ export enum TargetType {
   Bonus = 'Bonus',
 }
 
-/** ステージテンプレート種別。 */
-export type TemplateName = 'tiers' | 'gallery' | 'orbit' | 'curve' | 'mole';
+/** ステージテンプレート種別 (practice = 出発直後の練習ラウンド)。 */
+export type TemplateName =
+  | 'practice'
+  | 'tiers'
+  | 'gallery'
+  | 'orbit'
+  | 'curve'
+  | 'mole';
 
 /** 弾を遮る障害物 (球)。カーブで避けて当てる用。 */
 export interface Obstacle {

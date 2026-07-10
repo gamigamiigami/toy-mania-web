@@ -1,8 +1,12 @@
 import {
   CameraConfig,
+  CoopConfig,
   PlayerConfig,
+  PRACTICE_INFO,
   RoundConfig,
   STAGE_INFO,
+  WeaponsConfig,
+  type WeaponSpec,
 } from '../config/GameConfig';
 import { Assets } from './Assets';
 import { Camera } from './Camera';
@@ -12,8 +16,14 @@ import { MediaPipeBridge } from '../input/MediaPipeBridge';
 import { Player } from './Player';
 import { Sound } from './Sound';
 import type { StageTemplate } from '../stage/StageTemplate';
+import { StreakerSystem } from '../stage/Streaker';
 import { createTemplate } from '../stage/templates';
-import { TrackingState, type PointerResult, type TemplateName } from './types';
+import {
+  TargetType,
+  TrackingState,
+  type PointerResult,
+  type TemplateName,
+} from './types';
 import { AutoFireSystem } from '../weapon/AutoFireSystem';
 import { ProjectileSystem } from '../weapon/ProjectileSystem';
 import { Renderer } from '../ui/Renderer';
@@ -30,7 +40,8 @@ export interface RunResult {
 
 /**
  * GameEngine
- * 責務: 各モジュールを束ね、ゲームループを回す。対戦(最大2人)とラウンド制(30秒)を管理。
+ * 責務: 各モジュールを束ね、ゲームループを回す。対戦(最大4人)とライド進行
+ *       (練習ラウンド → 5ステージ1周 → リザルト) を管理。
  */
 export class GameEngine {
   private readonly bus: GameBus = new EventBus();
@@ -43,14 +54,20 @@ export class GameEngine {
   private readonly renderer: Renderer;
   private readonly players: Player[];
   private readonly sound = new Sound();
+  /** たまに横切る特大ボーナス的 (5000点)。 */
+  private readonly streaker = new StreakerSystem();
   private stageIndex = 0;
   private template: StageTemplate;
   private templateName: TemplateName = STAGE_INFO[0].name as TemplateName;
+  /** 現在の武器 (ステージごとに変わる)。 */
+  private weapon: WeaponSpec = WeaponsConfig[STAGE_INFO[0].name as TemplateName];
 
   private rafId = 0;
   private lastTime = 0;
   private running = false;
   private phase: Phase = 'waiting';
+  /** 練習ラウンド中か (得点は本番に持ち越されない)。 */
+  private inPractice = false;
   private roundDuration: number = RoundConfig.durationSec;
   private timeLeft: number = RoundConfig.durationSec;
   /** ライド開始時のステージ (ここに戻ってきたら1周=終了)。 */
@@ -59,6 +76,8 @@ export class GameEngine {
   private shake = 0;
   /** カウントダウンtick用 (直前に鳴らした整数秒)。 */
   private lastTickSec = -1;
+  /** 協力ギミック: 直近のトリガー命中 (プレイヤーごとの時刻)。 */
+  private triggerHits: { playerId: number; at: number }[] = [];
 
   /** UI への通知。 */
   onScoreChange: (playerId: number, score: number) => void = () => {};
@@ -68,12 +87,12 @@ export class GameEngine {
   onRoundStart: () => void = () => {};
   onWaiting: () => void = () => {};
   onPlayerConnected: (playerId: number) => void = () => {};
-  /** コンボ更新 (HUD表示用)。 */
-  onCombo: (playerId: number, combo: number) => void = () => {};
   /** ライド1周が終わった (最終リザルト表示用)。 */
   onRunOver: (result: RunResult) => void = () => {};
   /** 次にプレイするステージ名 (待機中に表示)。 */
   onStage: (label: string) => void = () => {};
+  /** 現在の武器 (絵文字+名前。HUD/バナー表示用)。 */
+  onWeapon: (label: string) => void = () => {};
 
   constructor(
     private readonly video: HTMLVideoElement,
@@ -110,6 +129,7 @@ export class GameEngine {
     this.running = true;
     this.lastTime = performance.now();
     this.onStage(STAGE_INFO[this.stageIndex].label);
+    this.onWeapon(this.weaponLabel());
     this.loop(this.lastTime);
   }
 
@@ -133,12 +153,16 @@ export class GameEngine {
     if (!p || !p.connected) return;
     p.shots += 1;
     const ray = this.camera.screenToRay(p.cursor.getPosition());
-    this.projectiles.launch(ray, curve, id, p.color);
+    this.projectiles.launch(ray, curve, id, p.color, this.weapon);
     this.sound.fire();
   }
 
   getTemplateName(): TemplateName {
     return this.templateName;
+  }
+
+  private weaponLabel(): string {
+    return `${this.weapon.emoji} ${this.weapon.label}`;
   }
 
   private async setupCamera(): Promise<void> {
@@ -169,40 +193,69 @@ export class GameEngine {
     }
   }
 
-  /** ライド開始 (ホストが手動でスタート)。ここから5ステージ1周のラン。 */
+  /** ステージを切り替える共通処理 (的・弾・タイマー・武器・バナー)。 */
+  private setStage(name: TemplateName, label: string, duration: number): void {
+    this.templateName = name;
+    this.template = createTemplate(name);
+    this.weapon = WeaponsConfig[name];
+    this.projectiles.clear();
+    this.streaker.reset();
+    this.triggerHits = [];
+    this.timeLeft = duration;
+    this.lastTickSec = -1;
+    this.sound.stageStart();
+    this.onTime(Math.ceil(duration));
+    this.onStage(label);
+    this.onWeapon(this.weaponLabel());
+  }
+
+  /**
+   * ライド開始 (ホストが手動でスタート)。
+   * まず練習ラウンド (得点は持ち越されない) → 5ステージ1周のラン。
+   */
   startMatch(): void {
     this.sound.init(); // ユーザー操作で音声を起動
     this.runStartIndex = this.stageIndex;
     for (const p of this.players) p.reset();
-    this.template = createTemplate(this.templateName);
-    this.projectiles.clear();
-    this.timeLeft = this.roundDuration;
-    this.lastTickSec = -1;
     this.phase = 'playing';
+    this.inPractice = true;
     this.players.forEach((p) => this.onScoreChange(p.id, 0));
-    this.onTime(this.roundDuration);
-    this.sound.stageStart();
+    this.setStage('practice', PRACTICE_INFO.label, RoundConfig.practiceSec);
     this.onRoundStart();
   }
 
   /** リザルトからロビーへ戻る。 */
   toLobby(): void {
     this.phase = 'waiting';
+    this.inPractice = false;
     for (const p of this.players) p.reset();
+    this.templateName = STAGE_INFO[this.stageIndex].name as TemplateName;
     this.template = createTemplate(this.templateName);
+    this.weapon = WeaponsConfig[this.templateName];
     this.projectiles.clear();
+    this.streaker.reset();
     this.players.forEach((p) => this.onScoreChange(p.id, 0));
     this.onTime(this.roundDuration);
+    this.onStage(STAGE_INFO[this.stageIndex].label);
+    this.onWeapon(this.weaponLabel());
     this.onWaiting();
   }
 
-  /** 指定ステージへ即切り替えて開始 (テストプレイ用)。 */
+  /** 指定ステージへ即切り替えて開始 (テストプレイ用。練習はスキップ)。 */
   selectStage(index: number): void {
     const len = STAGE_INFO.length;
     this.stageIndex = ((index % len) + len) % len;
-    this.templateName = STAGE_INFO[this.stageIndex].name as TemplateName;
-    this.onStage(STAGE_INFO[this.stageIndex].label);
-    this.startMatch();
+    this.runStartIndex = this.stageIndex;
+    for (const p of this.players) p.reset();
+    this.phase = 'playing';
+    this.inPractice = false;
+    this.players.forEach((p) => this.onScoreChange(p.id, 0));
+    this.setStage(
+      STAGE_INFO[this.stageIndex].name as TemplateName,
+      STAGE_INFO[this.stageIndex].label,
+      this.roundDuration,
+    );
+    this.onRoundStart();
   }
 
   getStageIndex(): number {
@@ -218,6 +271,18 @@ export class GameEngine {
     }
   }
 
+  /** 練習ラウンド終了 → 得点をリセットして本番1ステージ目へ。 */
+  private endPractice(): void {
+    this.inPractice = false;
+    for (const p of this.players) p.reset();
+    this.players.forEach((p) => this.onScoreChange(p.id, 0));
+    this.setStage(
+      STAGE_INFO[this.stageIndex].name as TemplateName,
+      STAGE_INFO[this.stageIndex].label,
+      this.roundDuration,
+    );
+  }
+
   /** 次ステージへ移動 (ゲームは止めず、スコアは累積)。1周したらリザルトへ。 */
   private advanceStage(): void {
     const next = (this.stageIndex + 1) % STAGE_INFO.length;
@@ -226,14 +291,11 @@ export class GameEngine {
       return;
     }
     this.stageIndex = next;
-    this.templateName = STAGE_INFO[this.stageIndex].name as TemplateName;
-    this.template = createTemplate(this.templateName);
-    this.projectiles.clear();
-    this.timeLeft = this.roundDuration;
-    this.lastTickSec = -1;
-    this.sound.stageStart();
-    this.onTime(this.roundDuration);
-    this.onStage(STAGE_INFO[this.stageIndex].label);
+    this.setStage(
+      STAGE_INFO[this.stageIndex].name as TemplateName,
+      STAGE_INFO[this.stageIndex].label,
+      this.roundDuration,
+    );
   }
 
   /** ライド終了: ファンファーレ + 紙吹雪 + 最終リザルト。 */
@@ -251,7 +313,25 @@ export class GameEngine {
 
   /** 現在ステージのテーマ色。 */
   getTheme(): string {
-    return STAGE_INFO[this.stageIndex].theme;
+    return this.inPractice
+      ? PRACTICE_INFO.theme
+      : STAGE_INFO[this.stageIndex].theme;
+  }
+
+  /**
+   * 協力ギミック: 異なる2人が windowSec 以内にトリガーを撃つと特大ボーナス解放。
+   */
+  private recordTriggerHit(playerId: number, now: number): void {
+    const windowMs = CoopConfig.windowSec * 1000;
+    this.triggerHits = this.triggerHits.filter((h) => now - h.at <= windowMs);
+    const other = this.triggerHits.find((h) => h.playerId !== playerId);
+    if (other) {
+      this.triggerHits = [];
+      this.template.onCoopTrigger?.();
+      this.shake = Math.min(16, this.shake + 12);
+    } else {
+      this.triggerHits.push({ playerId, at: now });
+    }
   }
 
   /** ゲーム本体の進行 (待機中も warmup として動かす)。 */
@@ -259,30 +339,31 @@ export class GameEngine {
     if (this.inputMode === 'camera') {
       this.autoFire.update(dt, this.players[0].cursor.isTracking());
     }
-    void now;
     this.template.update(dt);
+    if (this.phase === 'playing') {
+      this.template.onTimeLeft?.(this.timeLeft);
+      // 特大横切りボーナスは本番中のみ出現。
+      if (!this.inPractice) this.streaker.update(dt);
+    }
     const obstacles = this.template.getObstacles?.() ?? [];
-    const hits = this.projectiles.update(
-      dt,
-      this.template.getTargets(),
-      obstacles,
-    );
+    const targets = [...this.template.getTargets(), ...this.streaker.targets()];
+    const hits = this.projectiles.update(dt, targets, obstacles);
     for (const hit of hits) {
-      const base = this.template.onHit(hit.target);
+      const isStreaker = this.streaker.owns(hit.target);
+      const base = isStreaker
+        ? hit.target.scoreValue
+        : this.template.onHit(hit.target);
       const pl = this.players[hit.playerId];
       if (!pl) continue;
       pl.hits += 1;
-      const awarded = pl.score.add(base); // コンボ倍率込みの実加点
-      if (awarded >= 600) this.shake = Math.min(14, this.shake + 8); // 大物は画面が揺れる
+      if (hit.target.type === TargetType.Trigger) this.recordTriggerHit(pl.id, now);
+      const awarded = pl.score.add(base);
+      if (awarded >= 1000) this.shake = Math.min(14, this.shake + 8); // 大物は画面が揺れる
+      if (isStreaker) this.shake = Math.min(18, this.shake + 14);
       this.sound.hit(awarded);
       const proj = this.camera.project(hit.point);
       if (proj.visible) {
-        this.feedback.addHit(
-          { x: proj.x, y: proj.y },
-          awarded,
-          pl.color,
-          pl.score.getCombo(),
-        );
+        this.feedback.addHit({ x: proj.x, y: proj.y }, awarded, pl.color);
         this.feedback.addBreak(
           { x: proj.x, y: proj.y },
           hit.target.radius * proj.scale,
@@ -290,10 +371,8 @@ export class GameEngine {
       }
       if (this.phase === 'playing') {
         this.onScoreChange(pl.id, pl.score.getScore());
-        this.onCombo(pl.id, pl.score.getCombo());
       }
     }
-    for (const p of this.players) p.score.update(dt);
   }
 
   private loop = (now: number): void => {
@@ -316,7 +395,10 @@ export class GameEngine {
         this.lastTickSec = sec;
         this.sound.tick();
       }
-      if (this.timeLeft <= 0) this.advanceStage(); // 次ステージへゆっくり移動
+      if (this.timeLeft <= 0) {
+        if (this.inPractice) this.endPractice(); // 練習終了 → 本番へ
+        else this.advanceStage(); // 次ステージへゆっくり移動
+      }
     }
 
     // 画面シェイク減衰。
@@ -330,6 +412,7 @@ export class GameEngine {
       this.camera,
       this.shake,
       this.getTheme(),
+      this.streaker.targets(),
     );
 
     this.rafId = requestAnimationFrame(this.loop);

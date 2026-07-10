@@ -8,11 +8,12 @@ import { randIcon, tierType } from './util';
 const C = StagesConfig.curve;
 
 /**
- * CurveCourse (カーブ迫りコース)
- * 障害物が直進弾を遮るので、斜めスワイプのカーブで裏の的を狙う。
+ * CurveCourse (カーブ峡谷)
+ * 障害物が直進弾を遮るので、輪投げの山なり軌道と斜めスワイプのカーブで
+ * 裏の的を狙う。高得点ほど的が小さい。
  */
 export class CurveCourse implements StageTemplate {
-  readonly displayName = 'カーブ迫りコース';
+  readonly displayName = 'カーブ峡谷';
   readonly backgroundKey = 'farm';
 
   private slots: { target: Target | null; timer: number; index: number }[];
@@ -31,7 +32,7 @@ export class CurveCourse implements StageTemplate {
     const isTrigger = (C.triggerSlots as readonly number[]).includes(index);
     return new Target({
       position: { x: s.x, y: s.y, z: s.z },
-      radius: C.tr,
+      radius: s.tr,
       scoreValue: s.score,
       type: isTrigger ? TargetType.Trigger : tierType(s.score),
       iconIndex: randIcon(),
@@ -61,6 +62,9 @@ export class CurveCourse implements StageTemplate {
   onHit(t: Target): number {
     if (t.type === TargetType.Trigger) this.burst.spawn(t.position.x, t.position.z);
     return t.scoreValue;
+  }
+  onCoopTrigger(): void {
+    this.burst.spawnMega();
   }
   getGuides(): GuideSegment[] { return []; }
   getObstacles(): Obstacle[] {

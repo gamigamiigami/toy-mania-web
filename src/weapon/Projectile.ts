@@ -1,4 +1,4 @@
-import { WorldConfig } from '../config/GameConfig';
+import { WorldConfig, type ProjectileKind } from '../config/GameConfig';
 import type { Vec3 } from '../core/types';
 
 /** Trail を構成する点 (経過時間つき)。 */
@@ -9,13 +9,17 @@ export interface TrailPoint {
 
 /**
  * Projectile
- * 責務: 3D空間を飛ぶ1個のボール。重力を受けて放物線を描く。
- *       奥(+z)へ進むほど飛行時間が伸び、落下量が増える。
+ * 責務: 3D空間を飛ぶ1個の弾。重力を受けて放物線を描く。
+ *       弾の種類(kind)・重力・半径はステージの武器で変わる。
  */
 export class Projectile {
   readonly position: Vec3;
   private readonly velocity: Vec3;
-  readonly radius = WorldConfig.ballRadius;
+  readonly radius: number;
+  /** 弾の見た目の種類 (ステージの武器)。 */
+  readonly kind: ProjectileKind;
+  /** この弾に働く重力 (武器ごとに違う)。 */
+  private readonly gravity: number;
   readonly trail: TrailPoint[] = [];
   private age = 0;
   private alive = true;
@@ -32,17 +36,23 @@ export class Projectile {
     curve = 0,
     playerId = 0,
     color: string = WorldConfig.ballColor,
+    kind: ProjectileKind = 'ball',
+    gravity: number = WorldConfig.gravity,
+    radius: number = WorldConfig.ballRadius,
   ) {
     this.position = { ...position };
     this.velocity = { ...velocity };
     this.curve = curve;
     this.playerId = playerId;
     this.color = color;
+    this.kind = kind;
+    this.gravity = gravity;
+    this.radius = radius;
   }
 
   update(dt: number): void {
     // 重力で下向きに加速 (y は上が正)。
-    this.velocity.y -= WorldConfig.gravity * dt;
+    this.velocity.y -= this.gravity * dt;
     // カーブ: 横方向に加速して弧を描く。
     this.velocity.x += this.curve * dt;
     this.position.x += this.velocity.x * dt;

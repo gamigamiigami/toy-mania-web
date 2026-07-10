@@ -63,13 +63,15 @@ export const CursorConfig = {
 } as const;
 
 export const WeaponConfig = {
-  /** 発射レート: 2発/秒 → 発射間隔 0.5秒 */
+  /** カメラ操作(自動連射)の発射間隔 (秒)。 */
   fireIntervalSec: 0.5,
 } as const;
 
 export const RoundConfig = {
-  /** 1ステージの制限時間 (秒)。経過で次ステージ(今は同ステージ)へ。 */
+  /** 1ステージの制限時間 (秒)。経過で次ステージへ。 */
   durationSec: 30,
+  /** 出発直後の練習ラウンド (得点はカウントされない) の時間 (秒)。 */
+  practiceSec: 15,
   /** リザルト表示時間 (秒)。 */
   resultSec: 5,
 } as const;
@@ -81,21 +83,76 @@ export const PlayerConfig = {
   maxPlayers: 4,
 } as const;
 
-/** 得点階層。距離/サイズ/動きで差をつける。 */
+/** 得点階層 (本家準拠: 100 / 500 / 1000 / 2000、レアの 5000)。 */
 export const ScoreTier = {
   low: 100,
-  mid: 300,
-  high: 600,
-  top: 1000,
+  mid: 500,
+  high: 1000,
+  top: 2000,
+  mega: 5000,
 } as const;
 
+/** 弾の種類 (ステージごとに変わる)。 */
+export type ProjectileKind = 'pie' | 'egg' | 'dart' | 'ball' | 'ring' | 'suction';
+
+export interface WeaponSpec {
+  kind: ProjectileKind;
+  label: string;
+  emoji: string;
+  /** 投擲初速 (ワールド単位/秒)。速いほど直線的。 */
+  speed: number;
+  /** この弾に働く重力 (ワールド単位/秒^2)。小さいほどまっすぐ飛ぶ。 */
+  gravity: number;
+  /** 弾のワールド半径。大きいほど当てやすい。 */
+  radius: number;
+}
+
 /**
- * ステージごとのパラメータ (ラフ)。座標はワールド単位。
+ * ステージごとの武器 (本家: パイ→卵→ダーツ→ボール→輪投げ→吸盤ダーツ)。
+ */
+export const WeaponsConfig: Record<TemplateName, WeaponSpec> = {
+  practice: { kind: 'pie', label: 'パイなげ', emoji: '🥧', speed: 15, gravity: 9, radius: 0.34 },
+  tiers: { kind: 'egg', label: 'たまごなげ', emoji: '🥚', speed: 18, gravity: 10, radius: 0.26 },
+  gallery: { kind: 'dart', label: 'ダーツ', emoji: '🎯', speed: 26, gravity: 3, radius: 0.2 },
+  orbit: { kind: 'ball', label: 'ベースボール', emoji: '⚾', speed: 22, gravity: 8, radius: 0.24 },
+  curve: { kind: 'ring', label: 'わなげ', emoji: '⭕', speed: 14, gravity: 9, radius: 0.36 },
+  mole: { kind: 'suction', label: 'きゅうばんダーツ', emoji: '🧲', speed: 24, gravity: 4, radius: 0.22 },
+};
+
+/** 固定トリガー的 (撃つとボーナス噴出) の共通型。 */
+export interface TriggerSpec {
+  x: number;
+  y: number;
+  z: number;
+  tr: number;
+  /** 撃たれてから再出現するまでの秒数。 */
+  respawn: number;
+}
+
+/**
+ * ステージごとのパラメータ。座標はワールド単位。
+ * 本家の設計方針: 低得点=大きく遅い / 高得点=小さく速く短命。
  */
 export const StagesConfig = {
-  /** 3層ギャラリー: 手前スライド / 中ポップアップ / 奥カルーセル。当てやすめ・高密度。 */
+  /** 練習ラウンド: 大きな静止的。得点は本番に持ち越されない。 */
+  practice: {
+    slots: [
+      { x: -3.0, y: -0.6, z: 6 },
+      { x: -1.0, y: 0.4, z: 6.5 },
+      { x: 1.0, y: -0.4, z: 6.5 },
+      { x: 3.0, y: 0.6, z: 6 },
+      { x: -2.0, y: 1.4, z: 7.5 },
+      { x: 0, y: 0.9, z: 8 },
+      { x: 2.0, y: 1.6, z: 7.5 },
+    ],
+    tr: 0.8,
+    score: ScoreTier.low,
+    respawn: 0.6,
+  },
+
+  /** 3層ギャラリー: 手前スライド / 中ポップアップ / 奥カルーセル。 */
   gallery: {
-    near: { z: 5, y: -0.9, speed: 2.2, count: 4, score: ScoreTier.low },
+    near: { z: 5, y: -0.9, speed: 2.2, count: 5, score: ScoreTier.low },
     midHoles: [
       { x: -2.6, y: 0.2, z: 7 },
       { x: 0, y: 0.7, z: 7.4 },
@@ -104,44 +161,48 @@ export const StagesConfig = {
     midLife: 2.2,
     midRespawn: 0.4,
     midScore: ScoreTier.mid,
-    far: { cx: 0, cy: 1.2, z: 9, radius: 2.6, count: 3, speed: 0.9, score: ScoreTier.high, tr: 0.52 },
-    /** 中ポップアップが「トリガー的(青)」になる確率。撃つとボーナスが噴き出す。 */
-    triggerChance: 0.3,
+    far: { cx: 0, cy: 1.2, z: 9, radius: 2.6, count: 4, speed: 1.0, score: ScoreTier.high, tr: 0.42 },
+    /** 固定トリガー: カルーセルの上に鎮座。撃つとボーナス噴出。 */
+    trigger: { x: 0, y: 2.4, z: 9.5, tr: 0.5, respawn: 8 } as TriggerSpec,
   },
 
   /** トリガー命中で噴き出す共通ボーナス(1000点)の設定。 */
-  burst: { count: 6, life: 5, score: ScoreTier.top, tr: 0.42, spreadX: 4, yMin: -0.4, yMax: 2.2, z: 6.5, zSpread: 2 },
+  burst: { count: 6, life: 5, score: ScoreTier.high, tr: 0.42, spreadX: 4, yMin: -0.4, yMax: 2.2, z: 6.5, zSpread: 2 },
+  /** 協力ギミック(2人が短時間に両方トリガー)で噴き出す特大ボーナス(2000点)。 */
+  burstMega: { count: 10, life: 6, score: ScoreTier.top, tr: 0.4, spreadX: 5, yMin: -0.4, yMax: 2.6, z: 7, zSpread: 2.5 },
 
-  /** 回転オービット塔: 中央の柱の周りを水平カルーセルで周回(手前↔奥)。柱は細め。 */
+  /** 回転オービット塔: 中央の柱の周りを水平周回。柱が弾を遮る。 */
   orbit: {
     pillar: { x: 0, y: 0.4, z: 9, radius: 1.1 },
     rings: [
-      { z: 9, r: 3.0, count: 6, speed: 0.8, score: ScoreTier.mid, tr: 0.58, cy: 0.2 },
-      { z: 9, r: 1.9, count: 4, speed: 1.1, score: ScoreTier.high, tr: 0.44, cy: 1.5 },
+      { z: 9, r: 3.0, count: 7, speed: 0.9, score: ScoreTier.mid, tr: 0.55, cy: 0.2 },
+      { z: 9, r: 1.9, count: 5, speed: 1.3, score: ScoreTier.high, tr: 0.4, cy: 1.5 },
     ],
-    triggerChance: 0.18,
+    /** 固定トリガー: 塔のてっぺん。 */
+    trigger: { x: 0, y: 2.7, z: 9, tr: 0.45, respawn: 8 } as TriggerSpec,
   },
 
-  /** カーブ迫りコース: 障害物の裏をカーブで狙う。障害物は小さめ・的は大きめ。 */
+  /** カーブ峡谷: 障害物の裏を輪投げの山なり軌道とカーブで狙う。 */
   curve: {
     obstacles: [
       { x: -1.3, y: 0.1, z: 7.5, radius: 1.0 },
       { x: 1.7, y: 0.6, z: 8.5, radius: 1.0 },
     ],
     targets: [
-      { x: -3.0, y: 0.5, z: 9, score: ScoreTier.high },
-      { x: 3.1, y: 0.9, z: 9.5, score: ScoreTier.high },
-      { x: 0, y: -0.4, z: 6, score: ScoreTier.mid },
-      { x: -1.0, y: 1.6, z: 10, score: ScoreTier.top },
-      { x: 2.0, y: -0.2, z: 7, score: ScoreTier.mid },
+      { x: -3.0, y: 0.5, z: 9, score: ScoreTier.high, tr: 0.48 },
+      { x: 3.1, y: 0.9, z: 9.5, score: ScoreTier.high, tr: 0.48 },
+      { x: 0, y: -0.4, z: 6, score: ScoreTier.mid, tr: 0.62 },
+      { x: -1.0, y: 1.6, z: 10, score: ScoreTier.top, tr: 0.38 },
+      { x: 2.0, y: -0.2, z: 7, score: ScoreTier.mid, tr: 0.62 },
+      { x: -2.4, y: -0.9, z: 6.2, score: ScoreTier.low, tr: 0.7 },
+      { x: 3.6, y: 1.9, z: 10.5, score: ScoreTier.high, tr: 0.44 },
     ],
     respawn: 0.7,
-    tr: 0.6,
     /** どのスロットをトリガー的にするか (撃つとボーナス噴出)。 */
-    triggerSlots: [3],
+    triggerSlots: [2],
   },
 
-  /** 立体モグラ叩き: 奥行き3段の穴から上下に出没。出現多め・長め=当てやすい。 */
+  /** ビッグ・フィナーレ: モグラ + 成長ターゲット + 終盤ボーナスタイム。 */
   mole: {
     cols: [-2.7, 0, 2.7],
     rows: [
@@ -155,14 +216,33 @@ export const StagesConfig = {
     gapSec: 0.3,
     active: 6,
     tr: 0.6,
-    triggerChance: 0.12,
+    /** 固定トリガー: 左端の地上。 */
+    trigger: { x: -4.2, y: 0.0, z: 7, tr: 0.5, respawn: 8 } as TriggerSpec,
     /**
-     * 最終ステージの「撃つほど成長する的」: 撃つたび得点UP＆半径ダウン。
+     * 本家ウッディのボーナスラウンド再現: 残り finaleSec 秒からボーナスタイム。
+     * 全穴が高速出没になり、得点が残り時間に応じてエスカレートする。
+     */
+    finale: {
+      startSec: 10,
+      riseSec: 0.12,
+      holdSec: 0.8,
+      sinkSec: 0.12,
+      gapSec: 0.05,
+      active: 9,
+      /** 残り秒数がこの値以下なら対応する得点 (降順で判定)。 */
+      escalation: [
+        { under: 3, score: ScoreTier.top },
+        { under: 6, score: ScoreTier.high },
+        { under: 10, score: ScoreTier.mid },
+      ],
+    },
+    /**
+     * 最終ステージの「撃つほど得点UPする的」: 撃つたび得点UP＆半径ダウン。
      * minRadius まで小さくなるとフィニッシュ(大量得点)→respawnで再登場。
      */
     rising: {
       x: 0, y: 0.7, z: 6.5,
-      startValue: 300, increment: 200,
+      startValue: ScoreTier.mid, increment: 250,
       startRadius: 1.0, shrink: 0.06, minRadius: 0.3,
       respawn: 1.5,
     },
@@ -170,19 +250,39 @@ export const StagesConfig = {
 
   /**
    * ひな壇シューティング: 手前から奥へ段が上がる。各段に的が乗り左右スライド。
-   * 奥の段ほど高く・小さく・高得点。段の前後でオクルージョン＝奥行きが明確。
+   * 奥の段ほど高く・小さく・速く・高得点 (本家の得点則)。
    */
   tiers: {
     floorY: -2.2,
     steps: [
-      { y: -1.4, zNear: 5, zFar: 6.6, halfWidth: 5.0, count: 4, speed: 2.0, tr: 0.6, score: ScoreTier.low },
-      { y: -0.2, zNear: 7.0, zFar: 8.6, halfWidth: 4.6, count: 3, speed: 2.6, tr: 0.52, score: ScoreTier.mid },
-      { y: 1.0, zNear: 9.2, zFar: 10.8, halfWidth: 4.2, count: 3, speed: 3.0, tr: 0.44, score: ScoreTier.high },
-      { y: 2.2, zNear: 11.5, zFar: 13.0, halfWidth: 3.6, count: 2, speed: 3.4, tr: 0.38, score: ScoreTier.top },
+      { y: -1.4, zNear: 5, zFar: 6.6, halfWidth: 5.0, count: 5, speed: 2.0, tr: 0.62, score: ScoreTier.low },
+      { y: -0.2, zNear: 7.0, zFar: 8.6, halfWidth: 4.6, count: 4, speed: 2.6, tr: 0.52, score: ScoreTier.mid },
+      { y: 1.0, zNear: 9.2, zFar: 10.8, halfWidth: 4.2, count: 3, speed: 3.2, tr: 0.42, score: ScoreTier.high },
+      { y: 2.2, zNear: 11.5, zFar: 13.0, halfWidth: 3.6, count: 2, speed: 3.8, tr: 0.32, score: ScoreTier.top },
     ],
     respawn: 0.4,
-    triggerChance: 0.15,
+    /** 固定トリガー: 右端・2段目の高さ。 */
+    trigger: { x: 4.4, y: 0.3, z: 7.8, tr: 0.5, respawn: 8 } as TriggerSpec,
   },
+} as const;
+
+/** たまに横切る特大ボーナス的 (5000点)。高速で画面を通過する。 */
+export const StreakerConfig = {
+  score: ScoreTier.mega,
+  /** 次の出現までの間隔 (秒、この範囲でランダム)。 */
+  intervalMin: 16,
+  intervalMax: 32,
+  speed: 9,
+  z: 12.5,
+  y: 2.0,
+  tr: 0.5,
+  /** この |x| を超えたら退場。 */
+  xEdge: 9,
+} as const;
+
+/** 協力ギミック: 異なる2人が windowSec 以内に両方トリガーを撃つと特大ボーナス解放。 */
+export const CoopConfig = {
+  windowSec: 4,
 } as const;
 
 /** ステージ表示名・ローテーション順・カラーテーマ (画面の色味/バナー)。 */
@@ -193,6 +293,9 @@ export const STAGE_INFO: { name: string; label: string; theme: string }[] = [
   { name: 'curve', label: 'カーブ峡谷', theme: '#ff9f0a' },
   { name: 'mole', label: 'ビッグ・フィナーレ', theme: '#ff453a' },
 ];
+
+/** 練習ラウンドの表示情報。 */
+export const PRACTICE_INFO = { label: 'れんしゅうラウンド', theme: '#8e8e93' } as const;
 
 export const ControllerConfig = {
   sensX: 0.03,
@@ -212,19 +315,22 @@ export const ControllerConfig = {
 export const WorldConfig = {
   /** 垂直画角 (度)。透視投影の強さ。 */
   fovVDeg: 55,
-  /** 重力加速度 (ワールド単位/秒^2、下方向)。遠い的ほど落下量が増える。 */
+  /** 重力加速度の既定値 (武器ごとに上書き)。 */
   gravity: 10,
-  /** 投擲初速 (ワールド単位/秒)。照準方向(レイ)へこの速さで投げる。 */
+  /** 投擲初速の既定値 (武器ごとに上書き)。 */
   throwSpeed: 18,
   /** 投擲の発射元 (カメラ少し下=手元のイメージ)。 */
   muzzle: { x: 0, y: -0.5, z: 0.3 },
-  /** ボールのワールド半径。 */
+  /** ボールのワールド半径の既定値 (武器ごとに上書き)。 */
   ballRadius: 0.24,
   ballColor: '#00e5ff',
   /** 軌跡 (Trail) の生存時間 (秒)。外した方向を線として残す。 */
   trailLifeSec: 0.12,
-  /** 当たり判定の倍率 (狭め。よく狙わないと当たらない)。 */
-  hitboxMultiplier: 0.5,
+  /**
+   * 当たり判定の倍率。本家準拠で甘め (当てるのは簡単、
+   * 高得点の的を選び続けるのが難しい、という難易度設計)。
+   */
+  hitboxMultiplier: 0.95,
   /** 床の高さ。これより下に落ちたら消す。 */
   floorY: -4,
   /** これより奥(z)へ行ったら消す (的の後ろを通過)。 */
@@ -254,7 +360,7 @@ export const ArenaConfig = {
  * ターゲット共通設定 + 分類ごとの色・得点。
  */
 export const TargetConfig = {
-  /** 既定のワールド半径 (小さめ=難しめ)。 */
+  /** 既定のワールド半径。 */
   radius: 0.55,
   /** Hit フラッシュ表示時間 (秒)。 */
   hitFlashSec: 0.15,
@@ -267,114 +373,13 @@ export const TargetConfig = {
     [TargetType.Trigger]: '#30d1ff',
     [TargetType.Bonus]: '#ff2d55',
   } as Record<TargetType, string>,
-  /** 分類ごとの得点。Bonus = 通常の5倍。 */
+  /** 分類ごとの既定得点。 */
   scores: {
-    [TargetType.Normal]: 100,
-    [TargetType.HighValue]: 300,
-    [TargetType.Trigger]: 100,
-    [TargetType.Bonus]: 500,
+    [TargetType.Normal]: ScoreTier.low,
+    [TargetType.HighValue]: ScoreTier.mid,
+    [TargetType.Trigger]: ScoreTier.low,
+    [TargetType.Bonus]: ScoreTier.high,
   } as Record<TargetType, number>,
-} as const;
-
-/**
- * Phase1 ステージテンプレート設定。
- * いずれも X/Y/Z を使い、平面配置を避ける。
- */
-export const TemplatesConfig = {
-  default: 'photo' as TemplateName,
-
-  /** Template1 横移動。レーンごとに z(奥) と y(高さ) を変える。 */
-  sliders: {
-    lanes: [
-      { z: 4, y: -0.6, speed: 2.2, count: 2, type: TargetType.Normal },
-      { z: 7, y: 0.7, speed: 3.0, count: 2, type: TargetType.Normal },
-      { z: 11, y: 1.9, speed: 4.0, count: 1, type: TargetType.HighValue },
-    ],
-    respawnDelaySec: 0.6,
-  },
-
-  /** Template2 3×3 ポップアップ。行ごとに z(奥)・y(高さ) を変える。 */
-  matrix: {
-    rowZ: [4, 7, 10],
-    rowY: [-0.6, 0.6, 1.7],
-    cols: 3,
-    xSpacing: 2.4,
-    /** 同時表示数 */
-    activeCount: 4,
-    /** 出現時間 (秒) の範囲 */
-    lifeMin: 2,
-    lifeMax: 4,
-    /** 消滅後の再出現待ち (秒) */
-    respawnDelaySec: 0.4,
-    highValueChance: 0.25,
-    /** Trigger 出現率。撃つと Bonus が解放される。 */
-    triggerChance: 0.12,
-    /** Trigger で解放される Bonus の生存時間 (秒)。 */
-    bonusLifeSec: 5,
-  },
-
-  /** Template5 連鎖。5個を XYZ バラバラに配置。 */
-  chains: {
-    positions: [
-      { x: -3.2, y: -0.6, z: 4 },
-      { x: 2.6, y: 0.9, z: 6 },
-      { x: -1.4, y: 1.9, z: 9 },
-      { x: 3.0, y: 0.1, z: 11 },
-      { x: -3.0, y: 1.5, z: 13 },
-    ],
-    /** 連鎖達成で出現する Bonus の生存時間 (秒) と位置。 */
-    bonusLifeSec: 5,
-    bonusPos: { x: 0, y: 0.8, z: 7 },
-  },
-
-  /**
-   * Ham & Eggs (本戦1面の再現)。牧場シーン + 動く的 + 隠しギミック。
-   * キツネ(Trigger)を撃つと鶏小屋の扉が開き、ニワトリ(1000点)が飛び出す。
-   */
-  hameggs: {
-    /** ポップアップ(イタチ): 手前の柵の陰から出現。 */
-    weasels: {
-      spots: [
-        { x: -2.2, y: -3.0, z: 10.5 },
-        { x: 0, y: -3.0, z: 10.5 },
-        { x: 2.2, y: -3.0, z: 10.5 },
-      ],
-      holdSec: 2,
-      respawnSec: 1,
-    },
-    /** 横移動(ブタ/ヒツジ): 左の柵沿いを等速で。 */
-    sliders: { z: 12, y: -2.7, speed: 2.5, count: 2 },
-    /** 上空(アヒル/トリ): サインカーブで飛行。 */
-    flyers: { z: 17, baseY: 2.6, amp: 1.0, speed: 3, count: 2, xRange: 6 },
-    /** トリガー(屋根のキツネ): 中央小屋の屋根に静止。 */
-    fox: { x: 0, y: 1.7, z: 15 },
-    /** ボーナス(小屋のニワトリ): 扉が開いて出現。 */
-    chickens: {
-      count: 5,
-      positions: [
-        { x: -1.6, y: -0.4, z: 14 },
-        { x: -0.8, y: 0.2, z: 14 },
-        { x: 0, y: -0.2, z: 14 },
-        { x: 0.8, y: 0.3, z: 14 },
-        { x: 1.6, y: -0.4, z: 14 },
-      ],
-      score: 1000,
-      windowSec: 8,
-    },
-    /** 扉の開閉アニメ時間 (秒)。 */
-    doorOpenSec: 0.4,
-    /** 風車の回転速度 (rad/秒)。 */
-    windmillSpeed: 1.2,
-  },
-} as const;
-
-export const ScoreConfig = {
-  /** 連続命中の表示リセットまでの猶予 (秒)。 */
-  comboWindowSec: 2.5,
-  /** コンボ倍率: comboStep ヒットごとに +comboBonus、上限 comboMax 倍。 */
-  comboStep: 4,
-  comboBonus: 0.5,
-  comboMax: 4,
 } as const;
 
 export const FeedbackConfig = {
@@ -387,7 +392,7 @@ export const FeedbackConfig = {
   scoreColor: '#ffffff',
   scoreColorBig: '#ffd60a',
   /** この得点以上は大きく強調表示。 */
-  bigScoreThreshold: 300,
+  bigScoreThreshold: 500,
   /** 命中で割れる破片の数・寿命・初速・落下・色。 */
   debrisCount: 12,
   debrisLifeSec: 0.4,
@@ -425,24 +430,4 @@ export const AssetConfig = {
   ] as ReadonlyArray<readonly [number, number, number]>,
   /** 半径に掛ける余裕 (1.0=赤リング外周ぴったり)。 */
   iconPad: 1.02,
-} as const;
-
-/**
- * PhotoFarm ステージ: 背景画像 + 的スプライト。
- * 的は固定3D位置(奥行きでサイズ差)に散らし、命中で消えて3秒後に再出現。
- */
-export const PhotoFarmConfig = {
-  respawnSec: 3,
-  /** 的スロット。icon は的シートのインデックス(0..8)、z で大きさが変わる。 */
-  slots: [
-    { x: -3.0, y: 1.6, z: 6, icon: 0 },
-    { x: 2.2, y: 2.1, z: 7, icon: 1 },
-    { x: 0.2, y: 0.6, z: 9, icon: 2 },
-    { x: -2.1, y: -0.4, z: 8, icon: 5 },
-    { x: 3.0, y: 0.2, z: 10, icon: 8 },
-    { x: -3.6, y: 1.0, z: 11, icon: 4 },
-    { x: 1.6, y: 2.4, z: 13, icon: 3 },
-    { x: -1.0, y: 2.0, z: 12, icon: 6 },
-    { x: 3.4, y: -0.7, z: 14, icon: 7 },
-  ],
 } as const;

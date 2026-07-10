@@ -4,11 +4,14 @@ import { CurveCourse } from './CurveCourse';
 import { Gallery } from './Gallery';
 import { MoleGrid } from './MoleGrid';
 import { OrbitTower } from './OrbitTower';
+import { Practice } from './Practice';
 import { Tiers } from './Tiers';
 
 /** テンプレート名から実体を生成するファクトリ (拡張点)。 */
 export function createTemplate(name: TemplateName): StageTemplate {
   switch (name) {
+    case 'practice':
+      return new Practice();
     case 'gallery':
       return new Gallery();
     case 'orbit':

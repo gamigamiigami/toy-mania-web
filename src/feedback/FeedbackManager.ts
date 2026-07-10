@@ -75,8 +75,8 @@ export class FeedbackManager {
     }
   }
 
-  /** 命中フィードバック (マーカー + スコア)。color=プレイヤー色、combo=現在のコンボ。 */
-  addHit(position: Vec2, score: number, color: string, combo = 0): void {
+  /** 命中フィードバック (マーカー + スコア)。color=プレイヤー色。 */
+  addHit(position: Vec2, score: number, color: string): void {
     this.markers.push({
       position: { ...position },
       life: FeedbackConfig.hitMarkerLifeSec,
@@ -84,13 +84,12 @@ export class FeedbackManager {
       color,
     });
     if (score > 0) {
-      const comboText = combo >= 2 ? ` x${combo}` : '';
       this.scores.push({
         position: { ...position },
         life: FeedbackConfig.scoreTextLifeSec,
         maxLife: FeedbackConfig.scoreTextLifeSec,
-        text: `+${score}${comboText}`,
-        big: score >= FeedbackConfig.bigScoreThreshold || combo >= 4,
+        text: `+${score}`,
+        big: score >= FeedbackConfig.bigScoreThreshold,
         color,
       });
     }

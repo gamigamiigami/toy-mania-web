@@ -28,10 +28,8 @@ export function GameView() {
   const [connected, setConnected] = useState<boolean[]>(() =>
     PlayerConfig.colors.map(() => false),
   );
-  const [combos, setCombos] = useState<number[]>(() =>
-    PlayerConfig.colors.map(() => 0),
-  );
   const [timeLeft, setTimeLeft] = useState(0);
+  const [weaponLabel, setWeaponLabel] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [qr, setQr] = useState('');
   const [room, setRoom] = useState('');
@@ -72,12 +70,7 @@ export function GameView() {
         return next;
       });
     engine.onTime = setTimeLeft;
-    engine.onCombo = (id, c) =>
-      setCombos((arr) => {
-        const next = [...arr];
-        next[id] = c;
-        return next;
-      });
+    engine.onWeapon = setWeaponLabel;
     engine.onRoundStart = () => {
       setMatchPhase('playing');
       setRunResult(null);
@@ -245,9 +238,6 @@ export function GameView() {
                       style={{ color: PlayerConfig.colors[id] }}
                     >
                       {PlayerConfig.names[id]} {scores[id]}
-                      {combos[id] >= 2 && (
-                        <em className="combo">🔥{combos[id]}</em>
-                      )}
                     </span>
                   ) : null,
                 )}
@@ -255,13 +245,21 @@ export function GameView() {
               <span className={timeLeft <= 3 ? 'timer urgent' : 'timer'}>
                 {timeLeft}
               </span>
-              {stageLabel && <span className="stage-chip">{stageLabel}</span>}
+              {stageLabel && (
+                <span className="stage-chip">
+                  {stageLabel}
+                  {weaponLabel && ` ・ ${weaponLabel}`}
+                </span>
+              )}
             </div>
 
             {/* ステージ到着バナー */}
             {banner && matchPhase === 'playing' && (
               <div className="stage-banner">
-                <span>{banner}</span>
+                <span>
+                  {banner}
+                  {weaponLabel && <small>{weaponLabel}</small>}
+                </span>
               </div>
             )}
 
@@ -336,7 +334,7 @@ export function GameView() {
                   onClick={startMatch}
                   disabled={!canStart}
                 >
-                  ▶ ライド出発（全5ステージ ・ 各{durationSec}秒）
+                  ▶ ライド出発（練習 → 全5ステージ ・ 各{durationSec}秒）
                 </button>
                 {bestScore > 0 && (
                   <p className="best-score">🏆 ハイスコア {bestScore}</p>

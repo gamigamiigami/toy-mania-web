@@ -3,14 +3,14 @@ import { TargetType, type Obstacle } from '../../core/types';
 import { Target } from '../../target/Target';
 import { BonusBurst } from './BonusBurst';
 import type { GuideSegment, StageTemplate } from '../StageTemplate';
-import { randIcon, tierType } from './util';
+import { FixedTrigger, randIcon, tierType } from './util';
 
 const O = StagesConfig.orbit;
 
 /**
  * OrbitTower (回転オービット塔)
  * 中央の柱の周りを水平カルーセルで周回。的は手前↔奥に動き、柱の裏に回ると隠れて
- * 当てられない(柱が弾も遮る)。前に来た一瞬を狙う＝奥行きと先読みのゲーム。
+ * 当てられない(柱が弾も遮る)。塔のてっぺんに固定の隠しトリガー。
  */
 export class OrbitTower implements StageTemplate {
   readonly displayName = '回転オービット塔';
@@ -18,6 +18,7 @@ export class OrbitTower implements StageTemplate {
 
   private rings: Target[][] = [];
   private burst = new BonusBurst();
+  private trigger = new FixedTrigger(O.trigger);
 
   constructor() {
     this.rings = O.rings.map((ring) => {
@@ -30,12 +31,11 @@ export class OrbitTower implements StageTemplate {
   }
 
   private make(ring: (typeof O.rings)[number], angle: number): Target {
-    const isTrigger = Math.random() < O.triggerChance;
     const t = new Target({
       position: { x: 0, y: ring.cy, z: ring.z },
       radius: ring.tr,
       scoreValue: ring.score,
-      type: isTrigger ? TargetType.Trigger : tierType(ring.score),
+      type: tierType(ring.score),
       iconIndex: randIcon(),
     });
     t.phase = angle;
@@ -61,18 +61,23 @@ export class OrbitTower implements StageTemplate {
         }
       }
     });
+    this.trigger.update(dt);
     this.burst.update(dt);
   }
 
   getTargets(): Target[] {
     const out: Target[] = [];
     for (const arr of this.rings) for (const t of arr) if (!t.isDestroyed()) out.push(t);
+    out.push(...this.trigger.targets());
     out.push(...this.burst.targets());
     return out;
   }
   onHit(t: Target): number {
     if (t.type === TargetType.Trigger) this.burst.spawn(t.position.x, t.position.z);
     return t.scoreValue;
+  }
+  onCoopTrigger(): void {
+    this.burst.spawnMega();
   }
   getGuides(): GuideSegment[] { return []; }
   getObstacles(): Obstacle[] {

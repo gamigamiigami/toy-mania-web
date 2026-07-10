@@ -14,6 +14,8 @@ import type { CursorController } from '../cursor/CursorController';
 import type { FeedbackManager } from '../feedback/FeedbackManager';
 import type { SceneProp } from '../stage/Scene';
 import type { StageTemplate } from '../stage/StageTemplate';
+import type { Target } from '../target/Target';
+import type { Projectile } from '../weapon/Projectile';
 import type { ProjectileSystem } from '../weapon/ProjectileSystem';
 
 /**
@@ -41,6 +43,7 @@ export class Renderer {
     camera: Camera,
     shake = 0,
     theme = '#4aa3df',
+    extraTargets: Target[] = [],
   ): void {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -63,7 +66,7 @@ export class Renderer {
     // 背景プロップ(ひな壇/丘など)を奥から描く。
     this.drawProps(props.filter((p) => !this.isForeground(p)), camera);
     if (!useImageBg) this.drawGuides(template, camera);
-    this.drawWorld(template, projectiles, camera);
+    this.drawWorld(template, projectiles, camera, extraTargets);
     // 手前の遮蔽物(柵)は的より前に。
     this.drawProps(props.filter((p) => this.isForeground(p)), camera);
 
@@ -114,6 +117,7 @@ export class Renderer {
     template: StageTemplate,
     projectiles: ProjectileSystem,
     camera: Camera,
+    extraTargets: Target[] = [],
   ): void {
     type Item =
       | { z: number; kind: 't'; t: ReturnType<StageTemplate['getTargets']>[number] }
@@ -121,6 +125,7 @@ export class Renderer {
       | { z: number; kind: 'o'; o: { x: number; y: number; z: number; radius: number } };
     const items: Item[] = [];
     for (const t of template.getTargets()) items.push({ z: t.position.z, kind: 't', t });
+    for (const t of extraTargets) items.push({ z: t.position.z, kind: 't', t });
     for (const p of projectiles.getProjectiles()) items.push({ z: p.position.z, kind: 'p', p });
     for (const o of template.getObstacles?.() ?? []) items.push({ z: o.z, kind: 'o', o });
     items.sort((a, b) => b.z - a.z); // 奥(z大)から手前(z小)へ
@@ -403,6 +408,8 @@ export class Renderer {
     // スプライト的 (画像) があれば優先して描く。不透明で奥の球を隠す。
     if (t.iconIndex !== null && this.assets.targetsReady) {
       this.drawSprite(t.iconIndex, p.x, p.y, drawR, isHit);
+      // トリガー的は薄く光るリングで「何かある」ことを示唆 (本家の隠しギミック)。
+      if (t.type === TargetType.Trigger) this.drawTriggerGlow(p.x, p.y, r);
       this.drawValueLabel(t, p.x, p.y, r);
       if (animated) ctx.restore();
       return;
@@ -448,14 +455,30 @@ export class Renderer {
     if (animated) ctx.restore();
   }
 
-  /** 的の得点を下に表示 (中得点以上のみ。狙う優先度の手掛かり)。 */
+  /** トリガー的の周りに脈打つリング (青)。撃つと何かが起きる合図。 */
+  private drawTriggerGlow(cx: number, cy: number, r: number): void {
+    const { ctx } = this;
+    const pulse = 0.5 + 0.35 * Math.sin(performance.now() / 220);
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = TargetConfig.colors[TargetType.Trigger];
+    ctx.lineWidth = Math.max(2.5, r * 0.14);
+    ctx.shadowColor = TargetConfig.colors[TargetType.Trigger];
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** 的の得点を下に表示 (本家準拠: 全ての的に数字が付く)。 */
   private drawValueLabel(
     t: ReturnType<StageTemplate['getTargets']>[number],
     cx: number,
     cy: number,
     r: number,
   ): void {
-    if (t.scoreValue < 300) return;
+    if (t.scoreValue <= 0) return;
     const { ctx } = this;
     const big = t.scoreValue >= 1000;
     ctx.save();
@@ -533,13 +556,75 @@ export class Renderer {
     const c = camera.project(proj.position);
     if (!c.visible) return;
     const r = Math.max(1.5, proj.radius * c.scale);
+    this.drawProjectileShape(proj, c.x, c.y, r);
+  }
+
+  /** 弾の見た目をステージの武器 (kind) ごとに描き分ける。色はプレイヤー色。 */
+  private drawProjectileShape(proj: Projectile, x: number, y: number, r: number): void {
+    const { ctx } = this;
     ctx.save();
     ctx.fillStyle = proj.color;
     ctx.shadowColor = proj.color;
     ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
-    ctx.fill();
+    switch (proj.kind) {
+      case 'ring': {
+        // 輪投げ: 中が抜けたリング。
+        ctx.shadowBlur = 8;
+        ctx.strokeStyle = proj.color;
+        ctx.lineWidth = Math.max(2, r * 0.5);
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.95, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      }
+      case 'egg': {
+        // 卵: 縦長の楕円 + ハイライト。
+        ctx.beginPath();
+        ctx.ellipse(x, y, r * 0.8, r * 1.05, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(x - r * 0.25, y - r * 0.35, r * 0.25, r * 0.32, 0, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'dart':
+      case 'suction': {
+        // ダーツ/吸盤ダーツ: 先端 + 後方フィン (進行方向は奥なので点+羽で表現)。
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.75, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = proj.color;
+        ctx.lineWidth = Math.max(1.5, r * 0.28);
+        for (let i = 0; i < 4; i++) {
+          const a = Math.PI / 4 + (i * Math.PI) / 2;
+          ctx.beginPath();
+          ctx.moveTo(x + Math.cos(a) * r * 0.7, y + Math.sin(a) * r * 0.7);
+          ctx.lineTo(x + Math.cos(a) * r * 1.5, y + Math.sin(a) * r * 1.5);
+          ctx.stroke();
+        }
+        break;
+      }
+      case 'pie': {
+        // パイ: 皿 (外周) + クリーム (内側)。
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff4d6';
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.62, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      default: {
+        // ボール。
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     ctx.restore();
   }
 

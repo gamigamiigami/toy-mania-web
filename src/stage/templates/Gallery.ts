@@ -3,13 +3,14 @@ import { TargetType } from '../../core/types';
 import { Target } from '../../target/Target';
 import { BonusBurst } from './BonusBurst';
 import type { GuideSegment, StageTemplate } from '../StageTemplate';
-import { randIcon, tierType } from './util';
+import { FixedTrigger, randIcon, tierType } from './util';
 
 const G = StagesConfig.gallery;
 
 /**
  * Gallery (3層ギャラリー)
  * 手前=左右スライド(低得点) / 中=穴からポップアップ(中得点) / 奥=オービット(高得点)。
+ * カルーセルの上に固定の隠しトリガー。
  */
 export class Gallery implements StageTemplate {
   readonly displayName = '3層ギャラリー';
@@ -21,6 +22,7 @@ export class Gallery implements StageTemplate {
   private far: Target[] = [];
   private farPending: number[] = [];
   private burst = new BonusBurst();
+  private trigger = new FixedTrigger(G.trigger);
 
   constructor() {
     for (let i = 0; i < G.near.count; i++) this.near.push(this.makeNear());
@@ -77,12 +79,10 @@ export class Gallery implements StageTemplate {
         slot.timer -= dt;
         if (slot.timer <= 0) {
           const h = G.midHoles[this.holes.indexOf(slot)];
-          // 一定確率でトリガー的(青)。撃つとボーナスが噴き出す。
-          const isTrigger = Math.random() < G.triggerChance;
           slot.target = new Target({
             position: { ...h }, life: G.midLife,
             scoreValue: G.midScore,
-            type: isTrigger ? TargetType.Trigger : tierType(G.midScore),
+            type: tierType(G.midScore),
             iconIndex: randIcon(),
           });
         }
@@ -102,6 +102,7 @@ export class Gallery implements StageTemplate {
       this.far.push(this.makeFar(Math.random() * Math.PI * 2)),
     );
 
+    this.trigger.update(dt);
     this.burst.update(dt);
   }
 
@@ -126,12 +127,16 @@ export class Gallery implements StageTemplate {
     for (const t of this.near) if (!t.isDestroyed()) out.push(t);
     for (const s of this.holes) if (s.target && !s.target.isDestroyed()) out.push(s.target);
     for (const t of this.far) if (!t.isDestroyed()) out.push(t);
+    out.push(...this.trigger.targets());
     out.push(...this.burst.targets());
     return out;
   }
   onHit(t: Target): number {
     if (t.type === TargetType.Trigger) this.burst.spawn(t.position.x, t.position.z);
     return t.scoreValue;
+  }
+  onCoopTrigger(): void {
+    this.burst.spawnMega();
   }
   getGuides(): GuideSegment[] { return []; }
 }

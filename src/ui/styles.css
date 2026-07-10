@@ -108,11 +108,13 @@ body {
   font-size: clamp(18px, 2.6vw, 34px);
 }
 
-.vs-hud .combo {
-  font-style: normal;
-  font-size: 0.62em;
-  margin-left: 6px;
+.stage-banner span small {
+  display: block;
+  font-size: 0.38em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   color: #ffd60a;
+  text-align: center;
 }
 
 .hint-small {

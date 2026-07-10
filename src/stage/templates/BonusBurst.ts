@@ -4,6 +4,7 @@ import { Target } from '../../target/Target';
 import { randIcon } from './util';
 
 const B = StagesConfig.burst;
+const M = StagesConfig.burstMega;
 
 /**
  * BonusBurst
@@ -15,18 +16,27 @@ export class BonusBurst {
 
   /** ボーナスを噴き出す (撃った的の近くを中心に散らす)。 */
   spawn(centerX = 0, centerZ: number = B.z): void {
-    for (let i = 0; i < B.count; i++) {
+    this.burst(B, centerX, centerZ);
+  }
+
+  /** 協力ギミック達成時の特大ボーナス (数も点も多い)。 */
+  spawnMega(): void {
+    this.burst(M, 0, M.z);
+  }
+
+  private burst(cfg: typeof B | typeof M, centerX: number, centerZ: number): void {
+    for (let i = 0; i < cfg.count; i++) {
       this.bonus.push(
         new Target({
           position: {
-            x: centerX + (Math.random() * 2 - 1) * B.spreadX,
-            y: B.yMin + Math.random() * (B.yMax - B.yMin),
-            z: centerZ + (Math.random() * 2 - 1) * B.zSpread,
+            x: centerX + (Math.random() * 2 - 1) * cfg.spreadX,
+            y: cfg.yMin + Math.random() * (cfg.yMax - cfg.yMin),
+            z: centerZ + (Math.random() * 2 - 1) * cfg.zSpread,
           },
-          radius: B.tr,
-          scoreValue: B.score,
+          radius: cfg.tr,
+          scoreValue: cfg.score,
           type: TargetType.Bonus,
-          life: B.life,
+          life: cfg.life,
           iconIndex: randIcon(),
         }),
       );

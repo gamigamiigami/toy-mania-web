@@ -1,4 +1,4 @@
-import { WorldConfig } from '../config/GameConfig';
+import { WorldConfig, type WeaponSpec } from '../config/GameConfig';
 import type { Obstacle, Vec3 } from '../core/types';
 import type { Target } from '../target/Target';
 import { Projectile } from './Projectile';
@@ -19,7 +19,7 @@ export class ProjectileSystem {
   private projectiles: Projectile[] = [];
 
   /**
-   * 照準レイ方向へボールを1発投げる。
+   * 照準レイ方向へ弾を1発投げる。弾速・重力・半径は武器 (ステージごと) で決まる。
    * @param rayDir カメラから奥へ伸びる単位方向ベクトル (Camera.screenToRay)
    */
   launch(
@@ -27,8 +27,9 @@ export class ProjectileSystem {
     curveRatio = 0,
     playerId = 0,
     color: string = WorldConfig.ballColor,
+    weapon?: WeaponSpec,
   ): void {
-    const v = WorldConfig.throwSpeed;
+    const v = weapon?.speed ?? WorldConfig.throwSpeed;
     const velocity: Vec3 = {
       x: rayDir.x * v,
       y: rayDir.y * v,
@@ -36,7 +37,16 @@ export class ProjectileSystem {
     };
     const curve = curveRatio * WorldConfig.curveAccel;
     this.projectiles.push(
-      new Projectile({ ...WorldConfig.muzzle }, velocity, curve, playerId, color),
+      new Projectile(
+        { ...WorldConfig.muzzle },
+        velocity,
+        curve,
+        playerId,
+        color,
+        weapon?.kind ?? 'ball',
+        weapon?.gravity ?? WorldConfig.gravity,
+        weapon?.radius ?? WorldConfig.ballRadius,
+      ),
     );
   }
 

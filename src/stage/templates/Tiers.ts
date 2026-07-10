@@ -4,14 +4,14 @@ import type { SceneProp } from '../Scene';
 import { Target } from '../../target/Target';
 import { BonusBurst } from './BonusBurst';
 import type { GuideSegment, StageTemplate } from '../StageTemplate';
-import { randIcon, tierType } from './util';
+import { FixedTrigger, randIcon, tierType } from './util';
 
 const T = StagesConfig.tiers;
 
 /**
  * Tiers (ひな壇シューティング)
  * 手前から奥へ段が上がる台。各段に的が乗って左右スライド。
- * 奥の段ほど高く・小さく・高得点。段の前後でオクルージョンが効き奥行きが明確。
+ * 奥の段ほど高く・小さく・速く・高得点。右端に固定の隠しトリガー。
  */
 export class Tiers implements StageTemplate {
   readonly displayName = 'ひな壇';
@@ -21,6 +21,7 @@ export class Tiers implements StageTemplate {
   private rows: Target[][] = [];
   private pending: { step: number; timer: number }[] = [];
   private burst = new BonusBurst();
+  private trigger = new FixedTrigger(T.trigger);
 
   constructor() {
     this.rows = T.steps.map((step, si) => {
@@ -33,12 +34,11 @@ export class Tiers implements StageTemplate {
   private make(si: number): Target {
     const s = T.steps[si];
     const z = (s.zNear + s.zFar) / 2;
-    const isTrigger = Math.random() < T.triggerChance;
     const t = new Target({
       position: { x: (Math.random() * 2 - 1) * (s.halfWidth - s.tr), y: s.y + s.tr, z },
       radius: s.tr,
       scoreValue: s.score,
-      type: isTrigger ? TargetType.Trigger : tierType(s.score),
+      type: tierType(s.score),
       iconIndex: randIcon(),
     });
     t.vx = s.speed * (Math.random() < 0.5 ? -1 : 1);
@@ -69,18 +69,23 @@ export class Tiers implements StageTemplate {
         this.rows[p.step].push(this.make(p.step));
       }
     }
+    this.trigger.update(dt);
     this.burst.update(dt);
   }
 
   getTargets(): Target[] {
     const out: Target[] = [];
     for (const arr of this.rows) for (const t of arr) if (!t.isDestroyed()) out.push(t);
+    out.push(...this.trigger.targets());
     out.push(...this.burst.targets());
     return out;
   }
   onHit(t: Target): number {
     if (t.type === TargetType.Trigger) this.burst.spawn(t.position.x, t.position.z);
     return t.scoreValue;
+  }
+  onCoopTrigger(): void {
+    this.burst.spawnMega();
   }
   getGuides(): GuideSegment[] { return []; }
 
