@@ -148,7 +148,12 @@ export function GameView() {
       };
       host.onError = (t) =>
         setNetError(`接続準備に失敗: ${t}。再接続を押してください`);
-      host.onConnected = (id) => engine.connectPlayer(id);
+      host.onRejected = () =>
+        setNetError('満員（4台）のため新しい接続を断りました');
+      host.onConnected = (id) => {
+        setNetError('');
+        engine.connectPlayer(id);
+      };
       host.onAim = (id, x, y) => engine.setRemoteAim(id, x, y);
       host.onFire = (id, curve) => engine.fire(id, curve);
       host.onClosed = (id) =>
@@ -167,6 +172,13 @@ export function GameView() {
     }
   };
 
+  /** 全スマホの接続を切って枠を空ける (QR/ルームはそのまま)。 */
+  const freeSlots = () => {
+    hostRef.current?.kickAll();
+    setConnected(PlayerConfig.colors.map(() => false));
+    setNetError('接続をリセットしました。各スマホで「再接続」を押してください');
+  };
+
   const reconnect = () => {
     hostRef.current?.dispose();
     setQr('');
@@ -180,7 +192,11 @@ export function GameView() {
       setNetError('');
     };
     host.onError = (t) => setNetError(`接続準備に失敗: ${t}`);
-    host.onConnected = (id) => engineRef.current?.connectPlayer(id);
+    host.onRejected = () => setNetError('満員（4台）のため新しい接続を断りました');
+    host.onConnected = (id) => {
+      setNetError('');
+      engineRef.current?.connectPlayer(id);
+    };
     host.onAim = (id, x, y) => engineRef.current?.setRemoteAim(id, x, y);
     host.onFire = (id, curve) => engineRef.current?.fire(id, curve);
     host.onClosed = (id) =>
@@ -284,17 +300,21 @@ export function GameView() {
                 {isPhone && !qr && !netError && (
                   <p className="hint-small">接続準備中… QRを生成しています</p>
                 )}
-                {isPhone && netError && (
-                  <>
-                    <p className="error">{netError}</p>
-                    <button className="ctrl-btn small" onClick={reconnect}>
-                      再接続
-                    </button>
-                  </>
-                )}
+                {isPhone && netError && <p className="error">{netError}</p>}
                 {isPhone && (
                   <>
                     <p className="room">ルーム <b>{room}</b></p>
+                    <p className="hint-small">
+                      同じQRを全員で読み込めば最大4台まで参加できます
+                    </p>
+                    <div className="mode-row">
+                      <button className="ctrl-btn small" onClick={freeSlots}>
+                        空き枠をあける
+                      </button>
+                      <button className="ctrl-btn small" onClick={reconnect}>
+                        ルームを作り直す（QR更新）
+                      </button>
+                    </div>
                     <div className="join-chips">
                       {ids.map((id) => (
                         <span key={id} style={{ color: PlayerConfig.colors[id] }}>

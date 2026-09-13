@@ -1,56 +1,154 @@
 import { Peer, type DataConnection } from 'peerjs';
 import { type AimMessage, type FireMessage, type HostMessage } from './messages';
 
+/** open を待つ上限 (ms)。超えたら張り直す。 */
+const OPEN_TIMEOUT_MS = 9000;
+/** 再試行の上限。 */
+const MAX_ATTEMPTS = 20;
+
 /**
  * RemoteController
  * 責務: スマホ(コントローラ)側のWebRTC接続。ホストID(room)へ繋ぎ照準/発射を送る。
- *       公開ブローカの不安定さに備え、未登録/切断時はリトライする。
+ *       公開ブローカの不安定さに備え、未登録/切断/無反応のいずれでも張り直す。
+ *
+ * 重要: 同時に持つ接続は常に1本だけ。古い接続を閉じずに張り直すと、
+ *       ホスト側のプレイヤー枠を1台で複数消費してしまい、
+ *       2人目以降が入れなくなる。
  */
 export class RemoteController {
-  private peer: Peer;
+  private peer: Peer | null = null;
   private conn: DataConnection | null = null;
-  private retries = 0;
-  private opened = false;
+  private attempts = 0;
+  private disposed = false;
+  private full = false;
+  private timer: number | null = null;
+
   onOpen: () => void = () => {};
   onClosed: () => void = () => {};
   onError: (message: string) => void = () => {};
   onAssign: (player: number, color: string, name: string) => void = () => {};
+  /** ホストが満員で受け入れを断った。 */
+  onFull: () => void = () => {};
 
   constructor(private readonly hostId: string) {
+    this.boot();
+  }
+
+  private boot(): void {
+    if (this.disposed) return;
     this.peer = new Peer();
     this.peer.on('open', () => this.connect());
     this.peer.on('disconnected', () => {
       try {
-        this.peer.reconnect();
+        this.peer?.reconnect();
       } catch {
         /* noop */
       }
     });
     this.peer.on('error', (e: { type?: string }) => {
       const type = e?.type ?? 'error';
-      // ホスト未登録: ホスト初期化待ちの可能性→少し待って再接続。
-      if (type === 'peer-unavailable' && this.retries < 6 && !this.opened) {
-        this.retries += 1;
-        setTimeout(() => this.connect(), 900);
-        this.onError(`接続中…(${this.retries})`);
+      if (type === 'peer-unavailable') {
+        // ホスト未登録/取りこぼし → 少し待って張り直す。
+        this.retry('ホストを探しています');
         return;
       }
       this.onError(type);
+      this.retry(type);
     });
   }
 
+  /** 現在の接続を完全に破棄する (リスナーごと)。 */
+  private dropConn(): void {
+    const c = this.conn;
+    this.conn = null;
+    if (!c) return;
+    try {
+      c.removeAllListeners?.();
+      c.close();
+    } catch {
+      /* noop */
+    }
+  }
+
+  private clearTimer(): void {
+    if (this.timer !== null) {
+      window.clearTimeout(this.timer);
+      this.timer = null;
+    }
+  }
+
+  private retry(reason: string): void {
+    if (this.disposed || this.full) return;
+    this.clearTimer();
+    this.dropConn();
+    if (this.attempts >= MAX_ATTEMPTS) {
+      this.onError('接続できませんでした。QRを読み直してください');
+      return;
+    }
+    this.attempts += 1;
+    this.onError(`${reason}…(${this.attempts})`);
+    // 軽い指数バックオフ (最大4秒)。同時接続の輻輳をずらす意味もある。
+    const wait = Math.min(4000, 700 * this.attempts) + Math.random() * 300;
+    this.timer = window.setTimeout(() => this.connect(), wait);
+  }
+
+  /** 手動リトライ (UIの再接続ボタン)。 */
+  reconnect(): void {
+    if (this.disposed) return;
+    this.full = false;
+    this.attempts = 0;
+    this.clearTimer();
+    this.dropConn();
+    if (this.peer && !this.peer.destroyed && this.peer.open) this.connect();
+    else {
+      try {
+        this.peer?.destroy();
+      } catch {
+        /* noop */
+      }
+      this.boot();
+    }
+  }
+
   private connect(): void {
-    const conn = this.peer.connect(this.hostId, { reliable: false });
+    if (this.disposed || this.full) return;
+    this.clearTimer();
+    this.dropConn();
+    const peer = this.peer;
+    if (!peer || peer.destroyed) return;
+
+    // reliable: 発射(fire)の取りこぼしは体験を壊すので信頼性を優先する。
+    const conn = peer.connect(this.hostId, { reliable: true });
     this.conn = conn;
+
+    // 無反応(ICE失敗など)を検出して張り直す。
+    this.timer = window.setTimeout(() => {
+      if (this.conn === conn && !conn.open) this.retry('接続をやり直しています');
+    }, OPEN_TIMEOUT_MS);
+
     conn.on('open', () => {
-      this.opened = true;
+      if (this.conn !== conn) return;
+      this.clearTimer();
+      this.attempts = 0;
       this.onOpen();
     });
-    conn.on('close', () => this.onClosed());
+    conn.on('close', () => {
+      if (this.conn !== conn) return;
+      this.onClosed();
+      this.retry('切断されました。再接続');
+    });
+    conn.on('error', () => {
+      if (this.conn !== conn) return;
+      this.retry('接続エラー。再接続');
+    });
     conn.on('data', (data) => {
       const msg = data as HostMessage;
-      if (msg && msg.t === 'assign') {
-        this.onAssign(msg.player, msg.color, msg.name);
+      if (!msg) return;
+      if (msg.t === 'assign') this.onAssign(msg.player, msg.color, msg.name);
+      else if (msg.t === 'full') {
+        this.full = true;
+        this.clearTimer();
+        this.onFull();
       }
     });
   }
@@ -70,7 +168,14 @@ export class RemoteController {
   }
 
   dispose(): void {
-    this.conn?.close();
-    this.peer.destroy();
+    this.disposed = true;
+    this.clearTimer();
+    this.dropConn();
+    try {
+      this.peer?.destroy();
+    } catch {
+      /* noop */
+    }
+    this.peer = null;
   }
 }
