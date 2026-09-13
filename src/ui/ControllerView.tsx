@@ -33,6 +33,7 @@ export function ControllerView({ room }: { room: string }) {
   const [me, setMe] = useState<{ name: string; color: string } | null>(null);
   const [errMsg, setErrMsg] = useState('');
   const [permDenied, setPermDenied] = useState(false);
+  const [full, setFull] = useState(false);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -40,12 +41,30 @@ export function ControllerView({ room }: { room: string }) {
     c.onOpen = () => {
       setStatus('ready');
       setErrMsg('');
+      setFull(false);
     };
     c.onClosed = () => setStatus('closed');
     c.onError = (m) => setErrMsg(m);
-    c.onAssign = (_p, color, name) => setMe({ name, color });
+    c.onAssign = (_p, color, name) => {
+      setMe({ name, color });
+      setStatus('ready');
+    };
+    c.onFull = () => {
+      setFull(true);
+      setStatus('closed');
+    };
     ctrlRef.current = c;
-    return () => c.dispose();
+    // タブを閉じる/バックグラウンドへ行く時は接続を返す。
+    // これをしないとホスト側のプレイヤー枠が埋まったままになる。
+    // persisted=true は bfcache (復帰しうる) なので切らない。
+    const release = (e: PageTransitionEvent) => {
+      if (!e.persisted) c.dispose();
+    };
+    window.addEventListener('pagehide', release);
+    return () => {
+      window.removeEventListener('pagehide', release);
+      c.dispose();
+    };
   }, [room]);
 
   useEffect(() => {
@@ -88,6 +107,13 @@ export function ControllerView({ room }: { room: string }) {
 
   const recenter = () => {
     neutral.current = null;
+  };
+
+  const retryConn = () => {
+    setFull(false);
+    setErrMsg('');
+    setStatus('connecting');
+    ctrlRef.current?.reconnect();
   };
 
   const local = (e: TouchEvent, clientX: number, clientY: number): Drag => {
@@ -143,15 +169,30 @@ export function ControllerView({ room }: { room: string }) {
             {status === 'closed' && '切断されました'}
           </p>
         )}
-        {errMsg && <p className="error">通信: {errMsg}</p>}
+        {full && (
+          <p className="error">
+            満員です（最大4台）。誰かが抜けてから「再接続」を押してください。
+          </p>
+        )}
+        {!full && errMsg && <p className="error">通信: {errMsg}</p>}
+        {status !== 'ready' && (
+          <button className="ctrl-btn small" onClick={retryConn}>
+            🔄 再接続
+          </button>
+        )}
       </div>
 
       {!active ? (
         <div className="ctrl-center">
           <p>スマホを傾けて狙うので、センサー（ジャイロ）の使用許可が必要です。</p>
-          <button className="ctrl-btn" onClick={start} disabled={status !== 'ready'}>
+          <button className="ctrl-btn" onClick={start}>
             ▶ 開始（センサーを許可）
           </button>
+          <p className="hint-small">
+            {status === 'ready'
+              ? '接続OK。許可したらすぐ遊べます。'
+              : '接続を待たずに押してOK。許可だけ先に済ませられます。'}
+          </p>
           {permDenied && (
             <div className="perm-help">
               <p className="error">センサーが許可されませんでした。</p>

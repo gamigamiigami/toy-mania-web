@@ -22,7 +22,12 @@ export interface AssignMessage {
   name: string;
 }
 
-export type HostMessage = AssignMessage;
+/** 画面(ホスト) → スマホ へ: 満員で受け入れられない。 */
+export interface FullMessage {
+  t: 'full';
+}
+
+export type HostMessage = AssignMessage | FullMessage;
 
 /** ルームコードからPeerJSのIDを作る (公開ブローカ上の衝突を避けるため接頭辞)。 */
 export function peerIdForRoom(code: string): string {
