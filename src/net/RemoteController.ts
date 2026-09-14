@@ -1,8 +1,15 @@
 import { Peer, type DataConnection } from 'peerjs';
 import { type AimMessage, type FireMessage, type HostMessage } from './messages';
+import { peerOptions } from './peerOptions';
 
-/** open を待つ上限 (ms)。超えたら張り直す。 */
-const OPEN_TIMEOUT_MS = 9000;
+/**
+ * open を待つ上限 (ms)。
+ * モバイル回線ではICEの経路探索に10秒以上かかることがあるので短くしすぎない。
+ * (短いと、つながりかけの接続を自分で壊してしまう)
+ */
+const OPEN_TIMEOUT_MS = 20000;
+/** これ以上失敗したら「同じWi-Fiに」という対処法を出す。 */
+const TROUBLE_AFTER = 2;
 /** 再試行の上限。 */
 const MAX_ATTEMPTS = 20;
 
@@ -22,6 +29,7 @@ export class RemoteController {
   private disposed = false;
   private full = false;
   private timer: number | null = null;
+  private lastIce = '';
 
   onOpen: () => void = () => {};
   onClosed: () => void = () => {};
@@ -29,6 +37,10 @@ export class RemoteController {
   onAssign: (player: number, color: string, name: string) => void = () => {};
   /** ホストが満員で受け入れを断った。 */
   onFull: () => void = () => {};
+  /** ICE(経路探索)の状態。接続できない原因の切り分け用。 */
+  onIceState: (state: string) => void = () => {};
+  /** 何度も失敗している時の対処法 (空文字なら解消)。 */
+  onTrouble: (advice: string) => void = () => {};
 
   constructor(private readonly hostId: string) {
     this.boot();
@@ -36,7 +48,7 @@ export class RemoteController {
 
   private boot(): void {
     if (this.disposed) return;
-    this.peer = new Peer();
+    this.peer = new Peer(peerOptions());
     this.peer.on('open', () => this.connect());
     this.peer.on('disconnected', () => {
       try {
@@ -87,6 +99,13 @@ export class RemoteController {
     }
     this.attempts += 1;
     this.onError(`${reason}…(${this.attempts})`);
+    if (this.attempts >= TROUBLE_AFTER) {
+      this.onTrouble(
+        this.lastIce === 'failed' || this.lastIce === 'disconnected'
+          ? 'スマホとゲーム画面の間に通信経路が作れません。両方を同じWi-Fiにつないでください（スマホがモバイル回線だとつながらないことがあります）。'
+          : 'つながりません。①両方を同じWi-Fiにつなぐ ②ゲーム画面側で「ルームを作り直す（QR更新）」を押して読み直す、を試してください。',
+      );
+    }
     // 軽い指数バックオフ (最大4秒)。同時接続の輻輳をずらす意味もある。
     const wait = Math.min(4000, 700 * this.attempts) + Math.random() * 300;
     this.timer = window.setTimeout(() => this.connect(), wait);
@@ -130,6 +149,7 @@ export class RemoteController {
       if (this.conn !== conn) return;
       this.clearTimer();
       this.attempts = 0;
+      this.onTrouble('');
       this.onOpen();
     });
     conn.on('close', () => {
@@ -140,6 +160,13 @@ export class RemoteController {
     conn.on('error', () => {
       if (this.conn !== conn) return;
       this.retry('接続エラー。再接続');
+    });
+    conn.on('iceStateChanged', (state) => {
+      if (this.conn !== conn) return;
+      this.lastIce = state;
+      this.onIceState(state);
+      // failed = NAT越えに失敗 (別ネットワーク間で起きやすい)。張り直す。
+      if (state === 'failed') this.retry('経路が見つかりません。再試行');
     });
     conn.on('data', (data) => {
       const msg = data as HostMessage;

@@ -34,6 +34,8 @@ export function ControllerView({ room }: { room: string }) {
   const [errMsg, setErrMsg] = useState('');
   const [permDenied, setPermDenied] = useState(false);
   const [full, setFull] = useState(false);
+  const [ice, setIce] = useState('');
+  const [trouble, setTrouble] = useState('');
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -49,6 +51,8 @@ export function ControllerView({ room }: { room: string }) {
       setMe({ name, color });
       setStatus('ready');
     };
+    c.onIceState = setIce;
+    c.onTrouble = setTrouble;
     c.onFull = () => {
       setFull(true);
       setStatus('closed');
@@ -66,6 +70,23 @@ export function ControllerView({ room }: { room: string }) {
       c.dispose();
     };
   }, [room]);
+
+  // 一定時間つながらなければ、原因が分からなくても対処法を出す。
+  // (ICEが候補ゼロのまま止まると状態変化すら来ないため、時間で判断する)
+  useEffect(() => {
+    if (status === 'ready') {
+      setTrouble('');
+      return;
+    }
+    const id = window.setTimeout(() => {
+      setTrouble(
+        (t) =>
+          t ||
+          'ゲーム画面とスマホを同じWi-Fiにつないでください（スマホがモバイル回線だとつながりません）。それでもダメなら、ゲーム画面で「ルームを作り直す（QR更新）」を押してQRを読み直してください。',
+      );
+    }, 8000);
+    return () => window.clearTimeout(id);
+  }, [status]);
 
   useEffect(() => {
     if (!active) return;
@@ -175,6 +196,13 @@ export function ControllerView({ room }: { room: string }) {
           </p>
         )}
         {!full && errMsg && <p className="error">通信: {errMsg}</p>}
+        {status !== 'ready' && trouble && (
+          <div className="perm-help">
+            <p className="error">つながりません</p>
+            <p>{trouble}</p>
+          </div>
+        )}
+        {status !== 'ready' && ice && <p className="hint-small">経路: {ice}</p>}
         {status !== 'ready' && (
           <button className="ctrl-btn small" onClick={retryConn}>
             🔄 再接続

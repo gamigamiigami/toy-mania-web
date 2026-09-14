@@ -34,6 +34,8 @@ export function GameView() {
   const [qr, setQr] = useState('');
   const [room, setRoom] = useState('');
   const [netError, setNetError] = useState('');
+  const [iceState, setIceState] = useState('');
+  const [joining, setJoining] = useState(false);
   const [stageLabel, setStageLabel] = useState('');
   const [durationSec, setDurationSec] = useState(30);
   const [transitionSec, setTransitionSec] = useState(2.5);
@@ -112,6 +114,44 @@ export function GameView() {
       });
   };
 
+  /**
+   * ホスト接続の配線。handlePhone と reconnect の両方から使う。
+   * (2か所に同じ配線を書くと片方だけ更新して不整合を起こす)
+   */
+  const wireHost = (host: RemoteHost) => {
+    host.onReady = async () => {
+      setRoom(host.roomLabel());
+      setQr(
+        await QRCode.toDataURL(host.controllerUrl(), { width: 220, margin: 1 }),
+      );
+      setNetError('');
+    };
+    host.onError = (t) =>
+      setNetError(`接続準備に失敗: ${t}。「ルームを作り直す」を押してください`);
+    host.onRejected = () => setNetError('満員（4台）のため新しい接続を断りました');
+    host.onIceState = setIceState;
+    host.onAttempt = () => setJoining(true);
+    host.onAttemptFailed = () => {
+      setJoining(false);
+      setNetError(
+        'スマホとの通信経路を作れませんでした。ゲーム画面とスマホを同じWi-Fiにつないでください（スマホがモバイル回線だとつながらないことがあります）。',
+      );
+    };
+    host.onConnected = (id) => {
+      setNetError('');
+      setJoining(false);
+      engineRef.current?.connectPlayer(id);
+    };
+    host.onAim = (id, x, y) => engineRef.current?.setRemoteAim(id, x, y);
+    host.onFire = (id, curve) => engineRef.current?.fire(id, curve);
+    host.onClosed = (id) =>
+      setConnected((arr) => {
+        const next = [...arr];
+        next[id] = false;
+        return next;
+      });
+  };
+
   const handleCamera = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     setPhase('loading');
@@ -141,27 +181,7 @@ export function GameView() {
 
       const host = new RemoteHost();
       hostRef.current = host;
-      host.onReady = async () => {
-        setRoom(host.roomLabel());
-        setQr(await QRCode.toDataURL(host.controllerUrl(), { width: 220, margin: 1 }));
-        setNetError('');
-      };
-      host.onError = (t) =>
-        setNetError(`接続準備に失敗: ${t}。再接続を押してください`);
-      host.onRejected = () =>
-        setNetError('満員（4台）のため新しい接続を断りました');
-      host.onConnected = (id) => {
-        setNetError('');
-        engine.connectPlayer(id);
-      };
-      host.onAim = (id, x, y) => engine.setRemoteAim(id, x, y);
-      host.onFire = (id, curve) => engine.fire(id, curve);
-      host.onClosed = (id) =>
-        setConnected((arr) => {
-          const next = [...arr];
-          next[id] = false;
-          return next;
-        });
+      wireHost(host);
 
       await engine.start();
       setMatchPhase('waiting');
@@ -179,32 +199,18 @@ export function GameView() {
     setNetError('接続をリセットしました。各スマホで「再接続」を押してください');
   };
 
+  /** ルームを作り直す (QRも新しくなる)。 */
   const reconnect = () => {
     hostRef.current?.dispose();
     setQr('');
     setRoom('');
+    setJoining(false);
+    setIceState('');
+    setConnected(PlayerConfig.colors.map(() => false));
     setNetError('再接続中…');
     const host = new RemoteHost();
     hostRef.current = host;
-    host.onReady = async () => {
-      setRoom(host.roomLabel());
-      setQr(await QRCode.toDataURL(host.controllerUrl(), { width: 220, margin: 1 }));
-      setNetError('');
-    };
-    host.onError = (t) => setNetError(`接続準備に失敗: ${t}`);
-    host.onRejected = () => setNetError('満員（4台）のため新しい接続を断りました');
-    host.onConnected = (id) => {
-      setNetError('');
-      engineRef.current?.connectPlayer(id);
-    };
-    host.onAim = (id, x, y) => engineRef.current?.setRemoteAim(id, x, y);
-    host.onFire = (id, curve) => engineRef.current?.fire(id, curve);
-    host.onClosed = (id) =>
-      setConnected((arr) => {
-        const next = [...arr];
-        next[id] = false;
-        return next;
-      });
+    wireHost(host);
   };
 
   const startMatch = () => engineRef.current?.startMatch();
@@ -305,8 +311,14 @@ export function GameView() {
                   <>
                     <p className="room">ルーム <b>{room}</b></p>
                     <p className="hint-small">
-                      同じQRを全員で読み込めば最大4台まで参加できます
+                      同じQRを全員で読み込めば最大4台まで参加できます。
+                      <b>ゲーム画面とスマホを同じWi-Fiに</b>つないでください
+                      （スマホがモバイル回線だとつながらないことがあります）。
                     </p>
+                    {joining && (
+                      <p className="hint-small">📶 接続中の端末があります…</p>
+                    )}
+                    {iceState && <p className="hint-small">経路: {iceState}</p>}
                     <div className="mode-row">
                       <button className="ctrl-btn small" onClick={freeSlots}>
                         空き枠をあける

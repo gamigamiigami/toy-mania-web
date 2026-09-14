@@ -43,6 +43,8 @@
 - カメラ操作の指トラッキングはブレやすい(One Euroで軽減済み)。主役はスマホ操作。
 - actions_list の結果は巨大 → 保存ファイルを `python3 -c "import json; ..."` でパース。
 - **接続枠の扱い (重要)**: ホストのプレイヤー枠は DataConnection の `open` 完了時にのみ確保する。`connection` イベントで確保すると、open しなかった接続やリトライの残骸が枠を占有し2人目以降が入れなくなる (修正済み `e99ac93`)。コントローラ側も同時接続は常に1本に限定すること。
+- **別デバイス間がつながらない時はNAT越え(ICE)を疑う**。同一デバイス内は必ず成功するので切り分けにならない。実機で「PCは自宅Wi-Fi / スマホは4G」だとTURN中継が必須で、無料の公開TURN(UDP3478)は塞がれていることが多い。`?turn=turn:host:port,user,pass` で自前TURNを差せる。`?broker=host:port/path&brokerSecure=0` で自前PeerJSブローカに切替。
+- **ローカル検証手順** (サンドボックスからは公開ブローカ 0.peerjs.com が403で不可): `npm i peer playwright` → `PeerServer({port:9000,path:'/myapp',host:'127.0.0.1',allow_discovery:true})` を起動 → `vite preview` → Playwrightで別BrowserContextを4つ作り `?role=controller&room=<id>&broker=127.0.0.1:9000/myapp&brokerSecure=0` を開く。`iceTransportPolicy:'relay'` を注入すれば「別ネットワークでつながらない」状況を再現できる。
 - コントローラの「開始（センサーを許可）」は接続状態に関係なく押せる (iOSの許可はユーザー操作内で出す必要があるため、通信待ちでブロックしない)。
 
 ## 次にやる候補 (ユーザー選択待ち)

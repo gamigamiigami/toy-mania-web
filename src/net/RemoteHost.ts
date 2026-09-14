@@ -1,6 +1,7 @@
 import { Peer, type DataConnection } from 'peerjs';
 import { PlayerConfig } from '../config/GameConfig';
 import { type AssignMessage, type ControllerMessage, type FullMessage } from './messages';
+import { inheritNetParams, peerOptions } from './peerOptions';
 
 /** 接続してきたが open しないまま放置された接続を諦めるまでの時間 (ms)。 */
 const OPEN_TIMEOUT_MS = 12000;
@@ -33,9 +34,15 @@ export class RemoteHost {
   onError: (message: string) => void = () => {};
   /** 満員で受け入れを断った (ホスト側の表示用)。 */
   onRejected: () => void = () => {};
+  /** ICE(経路探索)の状態変化。接続できない原因の切り分け用。 */
+  onIceState: (state: string) => void = () => {};
+  /** 端末が接続を試み始めた (まだ通信路は未確立)。 */
+  onAttempt: () => void = () => {};
+  /** 接続を試みたが通信路を作れなかった (NAT越え失敗)。 */
+  onAttemptFailed: () => void = () => {};
 
   constructor() {
-    this.peer = new Peer();
+    this.peer = new Peer(peerOptions());
     this.peer.on('open', (id) => {
       this.id = id;
       this.onReady();
@@ -84,8 +91,10 @@ export class RemoteHost {
 
   private accept(conn: DataConnection): void {
     // open しないまま居座る接続は諦める (枠は open 時にしか取らないので枠は減らない)。
+    this.onAttempt();
     const giveUp = window.setTimeout(() => {
       if (!conn.open) {
+        this.onAttemptFailed();
         try {
           conn.close();
         } catch {
@@ -131,6 +140,14 @@ export class RemoteHost {
       window.clearTimeout(giveUp);
       this.release(conn);
     });
+    conn.on('iceStateChanged', (state) => {
+      this.onIceState(state);
+      // failed は NAT越え失敗。枠を握ったままにしない。
+      if (state === 'failed' || state === 'closed') {
+        window.clearTimeout(giveUp);
+        this.release(conn);
+      }
+    });
   }
 
   /** 現在つながっている台数 (枠の掃除込み)。 */
@@ -162,7 +179,7 @@ export class RemoteHost {
   /** コントローラ用URL (?role=controller&room=<peerId>)。 */
   controllerUrl(): string {
     const base = `${location.origin}${import.meta.env.BASE_URL}`;
-    return `${base}?role=controller&room=${encodeURIComponent(this.id)}`;
+    return `${base}?role=controller&room=${encodeURIComponent(this.id)}${inheritNetParams()}`;
   }
 
   dispose(): void {
